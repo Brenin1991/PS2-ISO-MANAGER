@@ -324,10 +324,46 @@ async function ensureVenvOnly(repoRoot, sessionId) {
   return { ok: true };
 }
 
+/** Filhos directos (Linux/macOS). pgrep devolve código 1 se não houver nenhum. */
+async function getUnixDirectChildren(ppid) {
+  try {
+    const { stdout } = await execFileAsync("pgrep", ["-P", String(ppid)], {
+      maxBuffer: 65536,
+    });
+    return stdout
+      .trim()
+      .split(/\n/)
+      .map((s) => parseInt(s.trim(), 10))
+      .filter((n) => Number.isFinite(n));
+  } catch (err) {
+    const code = err && (err.code ?? err.status ?? err.exitCode);
+    if (code === 1) return [];
+    return [];
+  }
+}
+
+/** SIGTERM/SIGKILL a todos os descendentes (profundidade primeiro) e ao PID raiz. */
+async function killUnixTreeSignal(rootPid, signal) {
+  async function recurse(p) {
+    const kids = await getUnixDirectChildren(p);
+    for (const k of kids) {
+      await recurse(k);
+    }
+    for (const k of kids) {
+      try {
+        process.kill(k, signal);
+      } catch (_) {}
+    }
+  }
+  await recurse(rootPid);
+  try {
+    process.kill(rootPid, signal);
+  } catch (_) {}
+}
+
 /**
- * Mata o processo Python e filhos. Windows: taskkill /T. Linux/macOS: o spawn do
- * backend usa detached:true para o Python ser líder de novo grupo/sessão; assim
- * process.kill(-pid) mata o grupo inteiro (filhos do Waitress, workers, etc.).
+ * Mata o processo Python e filhos. Windows: taskkill /T.
+ * Linux/macOS: grupo (spawn detached), árvore recursiva via pgrep, e /bin/kill como reforço.
  */
 async function killPythonProcessTree(child) {
   if (!child || !child.pid) return;
@@ -343,28 +379,32 @@ async function killPythonProcessTree(child) {
         windowsHide: true,
       });
     } else {
-      const killPg = (sig) => {
-        try {
-          process.kill(-pid, sig);
-          return true;
-        } catch (_) {
-          return false;
-        }
-      };
-      if (!killPg("SIGTERM")) {
-        try {
-          child.kill("SIGTERM");
-        } catch (_) {}
-      }
-      await new Promise((r) => setTimeout(r, 500));
       try {
-        if (child.exitCode === null && child.signalCode === null) {
-          if (!killPg("SIGKILL")) {
-            try {
-              child.kill("SIGKILL");
-            } catch (_) {}
-          }
-        }
+        child.kill("SIGTERM");
+      } catch (_) {}
+      try {
+        process.kill(-pid, "SIGTERM");
+      } catch (_) {}
+      await killUnixTreeSignal(pid, "SIGTERM");
+      try {
+        await execFileAsync("/bin/sh", [
+          "-c",
+          `kill -TERM -- -${pid} 2>/dev/null; kill -TERM ${pid} 2>/dev/null; true`,
+        ]);
+      } catch (_) {}
+      await new Promise((r) => setTimeout(r, 800));
+      try {
+        process.kill(-pid, "SIGKILL");
+      } catch (_) {}
+      await killUnixTreeSignal(pid, "SIGKILL");
+      try {
+        child.kill("SIGKILL");
+      } catch (_) {}
+      try {
+        await execFileAsync("/bin/sh", [
+          "-c",
+          `kill -KILL -- -${pid} 2>/dev/null; kill -KILL ${pid} 2>/dev/null; true`,
+        ]);
       } catch (_) {}
     }
   } catch (_) {
