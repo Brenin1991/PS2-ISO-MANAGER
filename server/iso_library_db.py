@@ -149,6 +149,29 @@ def load_all_as_dict(db_path: str) -> dict[str, dict[str, Any]]:
         conn.close()
 
 
+def get_entry(db_path: str, iso_relpath: str) -> dict[str, Any] | None:
+    """Metadados guardados para um ISO (caminho relativo a PS2_ISO_DIR)."""
+    rp = iso_relpath.replace("\\", "/").strip()
+    if not rp:
+        return None
+    conn = connect(db_path)
+    try:
+        row = conn.execute(
+            "SELECT iso_relpath, name, gameid, description FROM library_entry WHERE iso_relpath = ?",
+            (rp,),
+        ).fetchone()
+        if not row:
+            return None
+        return {
+            "iso_relpath": str(row["iso_relpath"]),
+            "name": row["name"] or "",
+            "gameid": row["gameid"] or "",
+            "description": row["description"] or "",
+        }
+    finally:
+        conn.close()
+
+
 def upsert_entry(
     db_path: str,
     iso_relpath: str,

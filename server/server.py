@@ -186,6 +186,22 @@ def _cover_png_path(gameid: str) -> str | None:
     return p if os.path.isfile(p) else None
 
 
+def _migrate_gameid_asset_folders(old_gid_raw: str, new_gid_raw: str) -> None:
+    """Se o gameid mudar, renomeia iso_art/<old> e iso_covers/<old> para <new> quando o destino ainda não existe."""
+    old = _safe_gameid(old_gid_raw)
+    new = _safe_gameid(new_gid_raw)
+    if not old or not new or old.upper() == new.upper():
+        return
+    for base in (ART_DATA_DIR, COVERS_DIR):
+        op = os.path.join(base, old)
+        np = os.path.join(base, new)
+        if os.path.isdir(op) and not os.path.exists(np):
+            try:
+                shutil.move(op, np)
+            except OSError:
+                pass
+
+
 def _art_folder_has_files(gameid: str) -> bool:
     if not gameid:
         return False
@@ -382,6 +398,12 @@ def _process_iso_admin_save(req) -> tuple[str | None, str | None, str | None]:
             except OSError:
                 pass
         return "gameid em falta e não foi possível detetar no ISO", None, None
+
+    if existing:
+        prev = iso_library_db.get_entry(LIBRARY_DB_PATH, iso_name)
+        prev_gid = (prev.get("gameid") or "").strip() if prev else ""
+        if prev_gid and gameid and prev_gid.upper() != gameid.upper():
+            _migrate_gameid_asset_folders(prev_gid, gameid)
 
     if tmp_upload_path:
         iso_name = _iso_filename_from_gameid_and_name(gameid, display_name)

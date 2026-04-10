@@ -86,14 +86,74 @@ function LibraryGameDetailView({
   base,
   row,
   onBack,
+  onLibraryUpdated,
 }: {
   base: string;
   row: LibraryRow;
   onBack: () => void;
+  onLibraryUpdated?: () => void | Promise<void>;
 }) {
-  const hero = gameTileImageUrl(base, row);
+  const [editGameid, setEditGameid] = useState(row.gameid);
+  const [editName, setEditName] = useState(row.name);
+  const [editDesc, setEditDesc] = useState(row.description || "");
+  const [editSaving, setEditSaving] = useState(false);
+  const [editMsg, setEditMsg] = useState("");
+  const [imgBust, setImgBust] = useState(0);
+
+  useEffect(() => {
+    setEditGameid(row.gameid);
+    setEditName(row.name);
+    setEditDesc(row.description || "");
+    setEditMsg("");
+  }, [row.file, row.gameid, row.name, row.description]);
+
+  let hero = gameTileImageUrl(base, row);
+  if (hero && imgBust > 0) {
+    hero += (hero.includes("?") ? "&" : "?") + "cb=" + String(imgBust);
+  }
   const downloadHref = gameDownloadUrl(base, row.file);
   const sizeMb = (row.size / (1024 * 1024)).toFixed(1);
+
+  async function onSubmitEdit(e: React.FormEvent) {
+    e.preventDefault();
+    setEditMsg("");
+    if (!editName.trim()) {
+      setEditMsg("O nome na lista é obrigatório.");
+      return;
+    }
+    setEditSaving(true);
+    const fd = new FormData();
+    fd.set("existing_iso", row.file);
+    fd.set("gameid", editGameid.trim());
+    fd.set("display_name", editName.trim());
+    fd.set("description", editDesc);
+    const cov = (document.getElementById("detail-cover") as HTMLInputElement)?.files?.[0];
+    const i0 = (document.getElementById("detail-icon0") as HTMLInputElement)?.files?.[0];
+    const p1 = (document.getElementById("detail-pic1") as HTMLInputElement)?.files?.[0];
+    const p2 = (document.getElementById("detail-pic2") as HTMLInputElement)?.files?.[0];
+    if (cov) fd.set("cover", cov);
+    if (i0) fd.set("icon0", i0);
+    if (p1) fd.set("pic1", p1);
+    if (p2) fd.set("pic2", p2);
+    try {
+      const r = await apiSaveLibrary(base, fd);
+      if (r.ok) {
+        setEditMsg("Alterações guardadas.");
+        setImgBust((b) => b + 1);
+        for (const id of ["detail-cover", "detail-icon0", "detail-pic1", "detail-pic2"]) {
+          const el = document.getElementById(id) as HTMLInputElement | null;
+          if (el) el.value = "";
+        }
+        await onLibraryUpdated?.();
+      } else {
+        setEditMsg(r.error || "Erro ao guardar");
+      }
+    } catch (err) {
+      setEditMsg(err instanceof Error ? err.message : String(err));
+    } finally {
+      setEditSaving(false);
+    }
+  }
 
   return (
     <div className="library-detail">
@@ -194,6 +254,59 @@ function LibraryGameDetailView({
           </div>
         </section>
       ) : null}
+
+      <section className="library-detail-edit" aria-labelledby="library-edit-heading">
+        <h2 id="library-edit-heading" className="library-detail-edit-title">
+          Editar metadados e imagens
+        </h2>
+        <p className="sub">
+          O ficheiro <strong>ISO</strong> não é alterado aqui (caminho: <code className="mono">{row.file}</code>). Pode mudar nome, ID, descrição e
+          substituir capa / arte OPL; deixe os ficheiros em branco para manter as imagens actuais.
+        </p>
+        <form onSubmit={(ev) => void onSubmitEdit(ev)} key={row.file}>
+          <div className="row2">
+            <div>
+              <label htmlFor="detail-gid">Game ID</label>
+              <input
+                id="detail-gid"
+                type="text"
+                value={editGameid}
+                onChange={(e) => setEditGameid(e.target.value)}
+                placeholder="ex. SLUS_123.45"
+                pattern="[A-Za-z0-9._\-]{4,40}"
+                autoComplete="off"
+              />
+            </div>
+            <div>
+              <label htmlFor="detail-dname">Nome na lista</label>
+              <input
+                id="detail-dname"
+                type="text"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                required
+                autoComplete="off"
+              />
+            </div>
+          </div>
+          <label htmlFor="detail-desc">Descrição</label>
+          <textarea id="detail-desc" rows={4} value={editDesc} onChange={(e) => setEditDesc(e.target.value)} placeholder="Opcional" />
+          <label htmlFor="detail-cover">Capa da biblioteca (PNG/JPG) — opcional</label>
+          <input id="detail-cover" type="file" accept="image/png,image/jpeg" />
+          <label htmlFor="detail-icon0">icon0 OPL (PNG/JPG) — opcional</label>
+          <input id="detail-icon0" type="file" accept="image/png,image/jpeg" />
+          <label htmlFor="detail-pic1">pic1 — opcional</label>
+          <input id="detail-pic1" type="file" accept="image/png,image/jpeg" />
+          <label htmlFor="detail-pic2">pic2 — opcional</label>
+          <input id="detail-pic2" type="file" accept="image/png,image/jpeg" />
+          <div className="library-detail-edit-actions">
+            <button type="submit" className="primary" disabled={editSaving}>
+              {editSaving ? "A guardar…" : "Guardar alterações"}
+            </button>
+            {editMsg ? <span className={editMsg.startsWith("Alterações") ? "ok" : "err"}>{editMsg}</span> : null}
+          </div>
+        </form>
+      </section>
     </div>
   );
 }
@@ -508,7 +621,12 @@ export default function App() {
           <>
             {libraryDetailFile ? (
               libraryDetailRow ? (
-                <LibraryGameDetailView base={base} row={libraryDetailRow} onBack={() => setLibraryDetailFile(null)} />
+                <LibraryGameDetailView
+                  base={base}
+                  row={libraryDetailRow}
+                  onBack={() => setLibraryDetailFile(null)}
+                  onLibraryUpdated={() => void refreshLibrary()}
+                />
               ) : (
                 <div className="card library-missing">
                   <p className="err">Entrada não encontrada ou lista desatualizada.</p>

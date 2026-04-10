@@ -917,6 +917,62 @@ code.mono {
   background: var(--bg);
 }
 
+.library-detail-edit {
+  margin-top: 2rem;
+  padding: 1.25rem 1.35rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.library-detail-edit-title {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.library-detail-edit .sub {
+  margin-top: 0;
+  margin-bottom: 1rem;
+}
+
+.library-detail-edit form label {
+  display: block;
+  margin-top: 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+.library-detail-edit form label:first-of-type {
+  margin-top: 0;
+}
+
+.library-detail-edit input[type="text"],
+.library-detail-edit textarea {
+  width: 100%;
+  margin-top: 0.25rem;
+}
+
+.library-detail-edit .row2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+@media (max-width: 640px) {
+  .library-detail-edit .row2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.library-detail-edit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 1rem;
+}
+
 .library-missing {
   text-align: center;
   max-width: 400px;
