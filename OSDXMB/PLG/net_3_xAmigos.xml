@@ -1,0 +1,114 @@
+<App Type="SUBMENU" Category="6" Icon="USER" Name="Comunidade Online" Description="Log de atividade (ps2online.com)">
+  <Options>
+    <![CDATA[
+      return [];
+    ]]>
+  </Options>
+  <Init>
+    <![CDATA[
+      function(SubMenu) {
+        function baseUrl() {
+          const c = CfgMan.Get("ps2online.cfg");
+          let u = c.url || c.URL;
+          if (!u || typeof u !== "string") { u = "http://192.168.0.140:5000"; }
+          return u.replace(/\/$/, "");
+        }
+        const jsonUrl = baseUrl() + "/ps2online/logs";
+        const jsonTmp = PATHS.XMB + "temp/ps2online_logs.json";
+
+        if (UserConfig.Network !== 1 || NetInfo.IP === "-") {
+          SubMenu.Items = [{
+            Name: "Rede desativada",
+            Description: "Ative a rede em Definições",
+            Icon: "USER",
+            Type: "SUBMENU",
+            Value: { Default: 0, Items: [] }
+          }];
+          return;
+        }
+
+        let data = false;
+        try {
+          if (!std.exists(PATHS.XMB + "temp")) { os.mkdir(PATHS.XMB + "temp"); }
+        } catch (eMk) { xlog(eMk); }
+        try {
+          MainMutex.unlock();
+          const req = new Request();
+          req.download(jsonUrl, jsonTmp);
+          MainMutex.lock();
+          if (std.exists(jsonTmp)) {
+            data = JSON.parse(std.loadFile(jsonTmp));
+            os.remove(jsonTmp);
+          }
+        } catch (e) {
+          MainMutex.lock();
+          xlog(e);
+        }
+
+        if (!data || typeof data !== "object") {
+          SubMenu.Items = [{
+            Name: "Dados indisponíveis",
+            Description: jsonUrl,
+            Icon: "USER",
+            Type: "SUBMENU",
+            Value: { Default: 0, Items: [] }
+          }];
+          return;
+        }
+
+        const err = data.error ? String(data.error) : "";
+        const raw = Array.isArray(data.lines) ? data.lines : [];
+        const items = [];
+
+        if (err && raw.length < 1) {
+          items.push({
+            Name: "Erro ao atualizar",
+            Description: err.length > 120 ? err.slice(0, 117) + "..." : err,
+            Icon: "USER",
+            Type: "SUBMENU",
+            Value: { Default: 0, Items: [] }
+          });
+          SubMenu.Items = items;
+          return;
+        }
+
+        if (raw.length < 1) {
+          items.push({
+            Name: "Sem entradas no log",
+            Description: "O site pode carregar o log via JS",
+            Icon: "USER",
+            Type: "SUBMENU",
+            Value: { Default: 0, Items: [] }
+          });
+          SubMenu.Items = items;
+          return;
+        }
+
+        for (let i = 0; i < raw.length; i++) {
+          const row = raw[i];
+          const full = row && row.line ? String(row.line) : "";
+          let name = full;
+          let desc = "";
+          const parts = full.split("||");
+          if (parts.length > 1) {
+            name = parts[0].replace(/^\s+|\s+$/g, "");
+            desc = parts.slice(1).join("||").replace(/^\s+|\s+$/g, "");
+          } else {
+            desc = full;
+          }
+          if (name.length > 14) { name = name.slice(0, 11) + "..."; }
+          if (desc.length > 110) { desc = desc.slice(0, 107) + "..."; }
+          items.push({
+            Name: name.length > 0 ? name : "?",
+            Description: desc.length > 0 ? desc : full.slice(0, 110),
+            Icon: "USER",
+            Type: "SUBMENU",
+            Value: { Default: 0, Items: [] }
+          });
+        }
+
+        SubMenu.Items = items;
+      }
+    ]]>
+  </Init>
+</App>

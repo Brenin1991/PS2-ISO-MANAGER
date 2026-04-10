@@ -1,0 +1,16 @@
+{
+  "Name": [
+    "Restart Interface",
+    "Interface de redémarrage",
+    "Reiniciar Interfaz",
+    "Neustartschnittstelle",
+    "Riavvia interfaccia",
+    "Interface opnieuw opstarten",
+    "Reiniciar Interface"
+  ],
+  "Description": "",
+  "Icon": "RELOAD",
+  "Category": 0,
+  "Type": "CODE",
+  "Value": 1
+}

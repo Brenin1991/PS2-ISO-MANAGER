@@ -1,0 +1,27 @@
+<App Type="SUBMENU" Category="1" Icon="SET_PARENTALCTRL" Name="{SETPARENTAL.NAME}" Description="{SETPARENTAL.DESC}">
+  <Option Type="DIALOG" Icon="15" Name="{PASS_CHANGE}">
+    <Dialog Type="PARENTAL_SET" BG="false" Icon="12" Title="{PASS_CHANGE}" Text="{PASS_NEW_MSG}" BackBtn="true" ConfirmBtn="true">
+			<Confirm>
+				<![CDATA[
+	  			function() {
+						UserConfig.ParentalCode = DashUI.Dialog.Data[DashUI.Dialog.Level].TmpCode;
+            CfgMan.PropertySet("main.cfg", "prntcode", `[ ${UserConfig.ParentalCode[0].toString()}, ${UserConfig.ParentalCode[1].toString()}, ${UserConfig.ParentalCode[2].toString()}, ${UserConfig.ParentalCode[3].toString()} ]`);
+						UIAnimationDialogFade_Start(false);
+					}
+			]]>
+			</Confirm>
+		</Dialog>
+  </Option>
+  <Option Type="CONTEXT" Icon="15" Default="{UserConfig.ParentalSet}" Name="{PARENTAL_CONTROL}">
+		<Component Name="{NO}" Icon="-1"/>
+		<Component Name="{YES}" Icon="-1"/>
+		<Confirm>
+			<![CDATA[
+				function(index, item) {
+					UserConfig.ParentalSet = index;
+          CfgMan.PropertySet("main.cfg", "parental", index.toString());
+				}
+			]]>
+		</Confirm>
+  </Option>
+</App>

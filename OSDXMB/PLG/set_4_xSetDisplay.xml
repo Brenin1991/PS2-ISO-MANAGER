@@ -1,0 +1,93 @@
+<App Type="SUBMENU" Category="1" Icon="SET_DISPLAY" Name="{DISPLAYSET0.NAME}" Description="{DISPLAYSET0.DESC}">
+  <Option Type="CONTEXT" Icon="15" Name="{DISPLAYSET1.NAME}" Description="{DISPLAYSET1.DESC}">
+    <Component Name="NTSC" Icon="-1"/>
+    <Component Name="PAL" Icon="-1"/>
+    <Component Name="DTV 480p" Icon="-1"/>
+    <Component Name="DTV 720p" Icon="-1"/>
+    <Component Name="DTV 1080i" Icon="-1"/>
+    <Component Name="NTSC 240p" Icon="-1"/>
+    <Component Name="PAL 288p" Icon="-1"/>
+    <Dialog Type="CONFIRMATION" BG="false" Icon="SET_DISPLAY" Title="{DISPLAYSET1.NAME}" Text="{VMODE_MSG}" ConfirmBtn="true">
+      <Confirm>
+        <![CDATA[
+          function() {
+            const sel = DashUI.Dialog.Data[DashUI.Dialog.Level].Selected;
+            if (sel === 1) {
+              ScrCanvas = TmpCanvas;
+              DashUI.SelectedItem.Value.Default = GetCurrentVmodeIndex();
+              Screen.setMode(ScrCanvas);
+              Screen.setParam(Screen.DEPTH_TEST_ENABLE, false);
+              DashUIConstantsInit();
+            }
+            else { CfgMan.PropertySet("main.cfg", "vmode", DashUI.SelectedItem.Value.Default.toString()); }
+            UIAnimationDialogFade_Start(false);
+          }
+        ]]>
+      </Confirm>
+    </Dialog>
+    <Default>
+      <![CDATA[
+        return GetCurrentVmodeIndex();
+      ]]>
+    </Default>
+    <Confirm>
+      <![CDATA[
+        function(index, item) {
+          if (GetCurrentVmodeIndex() === index) { return; }
+
+          TmpCanvas = Screen.getMode();
+          ApplyVmodeFromIndex(index);
+          Screen.setMode(ScrCanvas);
+          Screen.setParam(Screen.DEPTH_TEST_ENABLE, false);
+          DashUIConstantsInit();
+          DashUISetDialog(DashUI.Context.ItemCollection[DashUI.Context.Level].Dialog);
+          const defText = PreprocessText(DashUI.Dialog.Data[DashUI.Dialog.Level].Text);
+          globalThis.vmodeTmr = Timer.new();
+          Timer.reset(vmodeTmr);
+          Timer.resume(vmodeTmr);
+          let ival = os.setInterval(() => {
+            const elapsed = getTimerSec(vmodeTmr);
+            if (elapsed > 200) {
+              ScrCanvas = TmpCanvas;
+              DashUI.SelectedItem.Value.Default = GetCurrentVmodeIndex();
+              Timer.destroy(vmodeTmr);
+              Screen.setMode(ScrCanvas);
+              Screen.setParam(Screen.DEPTH_TEST_ENABLE, false);
+              DashUIConstantsInit();
+              os.clearInterval(ival);
+              UIAnimationDialogFade_Start(false);
+            }
+            else if (DashUI.Dialog.Level < 0) {
+              Timer.destroy(vmodeTmr);
+              os.clearInterval(ival);
+            }
+            else {
+              DashUI.Dialog.Data[DashUI.Dialog.Level].Timer = (25 -  ~~(elapsed / 8)).toString();
+            }
+          }, 0);
+        }
+      ]]>
+    </Confirm>
+  </Option>
+  <Option Type="CONTEXT" Icon="15" Default="{UserConfig.Aspect}" Name="{DISPLAYSET2.NAME}" Description="{DISPLAYSET2.DESC}">
+    <Component Name="4:3" Icon="-1"/>
+    <Component Name="16:9" Icon="-1"/>
+    <Confirm>
+      <![CDATA[
+        function(index, item) {
+            UserConfig.Aspect = index;
+            const vi = GetCurrentVmodeIndex();
+            if (vi === 3 || vi === 4) {
+              ApplyVmodeFromIndex(vi);
+            } else {
+              ScrCanvas.width = (index === 0) ? 640 : 704;
+            }
+            Screen.setMode(ScrCanvas);
+            Screen.setParam(Screen.DEPTH_TEST_ENABLE, false);
+            DashUIConstantsInit();
+            CfgMan.PropertySet("main.cfg", "aspect", index.toString());
+        }
+      ]]>
+    </Confirm>
+  </Option>
+</App>

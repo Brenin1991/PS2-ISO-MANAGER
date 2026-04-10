@@ -1,0 +1,71 @@
+<App Type="SUBMENU" Category="1" Icon="SET_NET" Name="{NETSET0.NAME}" Description="{NETSET0.DESC}">
+  <Option Type="DIALOG" Icon="15" Name="{NETSET1.NAME}" Description="{NETSET1.DESC}">
+    <Dialog Type="INFO" BG="false" Icon="28" Title="{NETSET1.NAME}" BackBtn="true">
+      <Info>
+        <Item Value="{getLocalText((UserConfig.Network) ? XMBLANG.ENABLED : XMBLANG.DISABLED)}" Selectable="false">
+          <Name>
+            <String str="Internet Connection" />
+            <String str="Connexion Internet" />
+            <String str="Conexión a Internet" />
+            <String str="Internetverbindung" />
+            <String str="Connessione Internet" />
+            <String str="Internetverbinding" />
+            <String str="Ligação à Internet" />
+          </Name>
+        </Item>
+        <Item Name="IP" Value="{NetInfo.IP}" Selectable="false" />
+        <Item Name="Netmask" Value="{NetInfo.NETMASK}" Selectable="false" />
+        <Item Name="Gateway" Value="{NetInfo.GATEWAY}" Selectable="false" />
+        <Item Name="DNS" Value="{NetInfo.DNS}" Selectable="false" />
+      </Info>
+    </Dialog>
+  </Option>
+  <Option Type="CONTEXT" Icon="15" Name="{NETSET2.NAME}" Description="{NETSET2.DESC}">
+    <Component Name="{NO}">
+      <Dialog Type="TEXT" BG="false" Text="{PLEASE_RESTART}" BackBtn="true">
+        <Task>
+          <![CDATA[
+						function() {
+              CfgMan.PropertySet("main.cfg", "network", UserConfig.Network.toString());
+						}
+					]]>
+        </Task>
+      </Dialog>
+    </Component>
+    <Component Name="{YES}">
+      <Dialog Type="TEXT" BG="false" Text="{NET.INIT_MSG}" >
+        <Task>
+          <![CDATA[
+						function() {
+              MainMutex.unlock();
+              UserConfig.Network = Number(NetInit());
+              MainMutex.lock();
+              CfgMan.PropertySet("main.cfg", "network", UserConfig.Network.toString());
+              const message = (UserConfig.Network === 0) ? getLocalText(XMBLANG.NET.ERR_1) : getLocalText(XMBLANG.NET.INIT_COMPLETE_MSG);
+              UIAnimationDialogContentFade_Start(false);
+              DashUI.AnimationQueue.push(() => {
+                  if (DashUI.Dialog.ContentFade.Running) { return false; }
+                  DashUI.Dialog.Data[DashUI.Dialog.Level].BACK_BTN = true;
+                  DashUI.Dialog.Data[DashUI.Dialog.Level].Text = message
+                  UIAnimationDialogContentFade_Start(true);
+                  return true;
+              });
+						}
+					]]>
+        </Task>
+      </Dialog>
+    </Component>
+		<Confirm>
+			<![CDATA[
+				function(index, item) {
+          if (index === UserConfig.Network) return;
+          UserConfig.Network = index;
+          let dialog = item.Dialog;
+          if ((index === 1) && (NetInfo.Initialized)) { dialog = DashUI.Context.Active.Items[0].Dialog; }
+          DashUISetDialog(dialog);
+				}
+			]]>
+		</Confirm>
+    <Default Variable="UserConfig.Network" />
+  </Option>
+</App>

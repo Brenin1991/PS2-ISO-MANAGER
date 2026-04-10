@@ -1,0 +1,171 @@
+<App Type="SUBMENU" Category="1" Icon="SET_THEME" Name="{THMSET0.NAME}" Description="{THMSET0.DESC}">
+  <Option Type="CONTEXT" Icon="SET_CFG" Name="{THMSET1.NAME}" Description="{THMSET1.DESC}">
+	  <Default>
+      <![CDATA[
+		    const Items = [];
+		    Items.push("Original");
+
+		    const sortedDirectories = System.listDir(PATHS.Theme)
+			    .filter((item) => item.name !== "." && item.name !== ".." && item.name !== "Original" && item.dir) // Exclude "." and ".." and keep only directories
+			    .sort((a, b) => a.name.localeCompare(b.name));
+
+		    for (let i = 0; i < sortedDirectories.length; i++) { Items.push(sortedDirectories[i].name); }
+		    let index = Items.indexOf(UserConfig.Theme);
+		    return (index > -1) ? index : 0;
+      ]]>
+	  </Default>
+	  <Components>
+      <![CDATA[
+        const Items = [];
+		    Items.push({Name: "Original"});
+
+		    const sortedDirectories = System.listDir(PATHS.Theme)
+			    .filter((item) => item.name !== "." && item.name !== ".." && item.name !== "Original" && item.dir) // Exclude "." and ".." and keep only directories
+			    .sort((a, b) => a.name.localeCompare(b.name));
+
+		    for (let i = 0; i < sortedDirectories.length; i++) {
+			    const item = sortedDirectories[i];
+			    const dirFiles = os.readdir(`${PATHS.Theme}${item.name}/`)[0];
+			    const ico = (dirFiles.includes("thmico.png")) ? `${PATHS.Theme}${item.name}/thmico.png` : -1;
+			    Items.push({ Name: item.name, Icon: ico });
+			    if (dirFiles.includes("thmprw.png")) { Items[Items.length - 1].PreviewImage = `${PATHS.Theme}${item.name}/thmprw.png`; }
+		    }
+
+		    return Items;
+      ]]>
+	  </Components>
+    <Confirm>
+      <![CDATA[
+        function(index, item) {
+          if (item.Name === UserConfig.Theme) { return; }
+		      UserConfig.Theme = item.Name;
+          CfgMan.PropertySet("main.cfg", "Theme", UserConfig.Theme);
+		      DashUISetDialog(DashUI.Context.ItemCollection[DashUI.Context.Level].Dialog);
+        }
+      ]]>
+    </Confirm>
+    <Dialog Icon="9" Title="{THMSET1.NAME}" BG="false" Type="TEXT" Text="{WAIT}" >
+      <Task>
+        <![CDATA[
+						function() {
+              DashCustomizableElementsInit();
+              DashUICustomizationInit();
+			        DisableCustomBgImg();
+              CleanThemeLayers();
+			        UserConfig.BgColor = 0;
+			        BgElements.BgColor.Next = UserConfig.BgColor;
+			        BgElements.BgColor.Progress = 0.0f;
+			        DashElements.ItemFocus = false;
+
+			        for (let i = 0; i < DashIcons.length; i++) {
+				        const path = `${PATHS.Theme}${UserConfig.Theme}/icons/${DashIconsInfo[i].path}`;
+            	  MainMutex.unlock();
+				        const icn = std.exists(path) ? new Image(path) : new Image(`${PATHS.Theme}Original/icons/${DashIconsInfo[i].path}`);
+            	  MainMutex.lock();
+				        icn.optimize();
+				        icn.filter = LINEAR;
+				        DashIcons[i] = icn;
+			        }
+
+			        let thmival = os.setInterval(() => {
+				        FontInit();
+                const thm = `${PATHS.Theme}${UserConfig.Theme}/thm.js`;
+				        if (std.exists(thm)) { std.loadScript(thm); }
+				        os.clearInterval(thmival);
+			        }, 0);
+
+			        UIAnimationDialogFade_Start(false);
+						}
+					]]>
+      </Task>
+    </Dialog>
+  </Option>
+  <Option Type="CONTEXT" Icon="SET_CFG" Name="{THMSET2.NAME}" Description="{THMSET2.DESC}">
+    <Component Name="{ORIGINAL}" />
+    <Component Icon="{cwd}XMB/color/ico1.png" />
+    <Component Icon="{cwd}XMB/color/ico2.png" />
+    <Component Icon="{cwd}XMB/color/ico3.png" />
+    <Component Icon="{cwd}XMB/color/ico4.png" />
+    <Component Icon="{cwd}XMB/color/ico5.png" />
+    <Component Icon="{cwd}XMB/color/ico6.png" />
+    <Component Icon="{cwd}XMB/color/ico7.png" />
+    <Component Icon="{cwd}XMB/color/ico8.png" />
+    <Component Icon="{cwd}XMB/color/ico9.png" />
+    <Component Icon="{cwd}XMB/color/ico10.png" />
+    <Component Icon="{cwd}XMB/color/ico11.png" />
+    <Component Icon="{cwd}XMB/color/ico12.png" />
+    <Component Icon="{cwd}XMB/color/ico13.png" />
+    <Default Variable="UserConfig.BgColor" />
+    <Preview>
+      <![CDATA[
+        function(index, item) {
+			    const ival = os.setInterval(() => {
+				    if (DashUI.State.Current !== 3) { os.clearInterval(ival); }
+				    else if (BgElements.BgColor.Next === BgElements.BgColor.Current) {
+					    BgElements.BgColor.Next = index;
+					    BgElements.BgColor.Progress = 0.0f;
+					    os.clearInterval(ival);
+				    }
+			    }, 0);
+        }
+      ]]>
+    </Preview>
+    <Confirm>
+      <![CDATA[
+        function(index, item) {
+			    if ((BgElements.BgColor.Next === BgElements.BgColor.Current) && (BgElements.BgColor.Next !== index)) {
+				    BgElements.BgColor.Current = BgElements.BgColor.Next;
+				    BgElements.BgColor.Next = index;
+				    BgElements.BgColor.Progress = 0.0f;
+			    }
+			    BgElements.BgColor.Previous = index;
+			    UserConfig.BgColor = index;
+          CfgMan.PropertySet("main.cfg", "BgColor", UserConfig.BgColor.toString());
+        }
+      ]]>
+    </Confirm>
+    <Cancel>
+      <![CDATA[
+        function(index, item) {
+			    if (BgElements.BgColor.Next !== BgElements.BgColor.Previous) {
+				    BgElements.BgColor.Current = BgElements.BgColor.Next;
+				    BgElements.BgColor.Next = BgElements.BgColor.Previous;
+				    BgElements.BgColor.Progress = 0.0f;
+			    }
+        }
+      ]]>
+    </Cancel>
+  </Option>
+  <Option Type="CONTEXT" Icon="SET_CFG" Name="{THMSET3.NAME}" Description="{THMSET3.DESC}">
+    <Component Name="{ORIGINAL}"/>
+    <Component Name="{WALLPAPER}" Icon="-1"/>
+    <Default Variable="UserConfig.DisplayBg" />
+    <Dialog Icon="9" Title="{WALLPAPER}" BG="true" Type="TEXT" Text="{NOWPP_MSG}" BackBtn="true"/>
+    <Confirm>
+      <![CDATA[
+        function(index, item) {
+          UserConfig.DisplayBg = false;
+          if ((index == 1) && (!UserConfig.CustomBgImg)) {
+              DashUISetDialog(DashUI.Context.ItemCollection[DashUI.Context.Level].Dialog);
+              return false;
+          }
+          else if ((index == 1) && (UserConfig.CustomBgImg)) { SetNewCustomBgImg(UserConfig.CustomBgImg); }
+          CfgMan.PropertySet("main.cfg", "displayBg", UserConfig.DisplayBg.toString());
+        }
+      ]]>
+    </Confirm>
+  </Option>
+  <Option Type="CONTEXT" Icon="SET_CFG" Name="{THMSET4.NAME}" Description="{THMSET4.DESC}">
+    <Component Name="{NO}" Icon="-1" />
+    <Component Name="{YES}" Icon="-1" />
+    <Default Variable="UserConfig.Waves" />
+    <Confirm>
+      <![CDATA[
+        function(index, item) {
+          UserConfig.Waves = (index == 1);
+          CfgMan.PropertySet("main.cfg", "waves", UserConfig.Waves.toString());
+        }
+      ]]>
+    </Confirm>
+  </Option>
+</App>

@@ -1,0 +1,213 @@
+<App Type="SUBMENU" Category="6" Icon="NET_PACKAGE" Name="Jogos no PC (OPL + SMB)" Description="OPL via SMB (PC). Enter to load list.">
+  <Options>
+    <![CDATA[
+      return [];
+    ]]>
+  </Options>
+  <Init>
+    <![CDATA[
+      function(SubMenu) {
+        function failMsg(msg, title) {
+          SubMenu.Items = [{
+            Name: (title != null && title !== "") ? title : "OPL SMB",
+            Description: msg,
+            Icon: "NET_PACKAGE",
+            Type: "SUBMENU",
+            Value: { Default: 0, Items: [] }
+          }];
+        }
+        try {
+        function baseUrl() {
+          try {
+            const c = CfgMan.Get("netiso.cfg");
+            let u = c.url || c.URL;
+            if (!u || typeof u !== "string") { u = "http://192.168.0.140:5000"; }
+            return u.replace(/\/$/, "");
+          } catch (eCfg) {
+            xlog(eCfg);
+            return "http://192.168.0.140:5000";
+          }
+        }
+
+        const listUrl = baseUrl() + "/list";
+        const bu = baseUrl();
+
+        const oplPaths = [];
+        try {
+          if (typeof PATHS !== "undefined" && PATHS && PATHS.OPL) {
+            oplPaths.push(String(PATHS.OPL) + "OPNPS2LD.ELF");
+          }
+        } catch (eOp) {
+          xlog(eOp);
+        }
+        /* resolveFilePath() expande mass?/mc?/mmce? em todos os índices.
+           Pack OSDXMB: OPL em mass?/OSDXMB/APPS/OPL/ (além de {cwd}/APPS/OPL/ quando CWD=.../OSDXMB/). */
+        const oplFallbacks = [
+          "{cwd}/APPS/OPL/OPNPS2LD.ELF",
+          "mass?:/OSDXMB/APPS/OPL/OPNPS2LD.ELF"
+        ];
+        for (let oi = 0; oi < oplFallbacks.length; oi++) {
+          if (oplPaths.indexOf(oplFallbacks[oi]) < 0) {
+            oplPaths.push(oplFallbacks[oi]);
+          }
+        }
+
+        if (UserConfig.Network !== 1 || NetInfo.IP === "-") {
+          SubMenu.Items = [{
+            Name: "Rede desativada",
+            Description: "Ative a rede em Definições",
+            Icon: "SET_NET",
+            Type: "SUBMENU",
+            Value: { Default: 0, Items: [] }
+          }];
+          return;
+        }
+
+        // Evitar Request extra no menu (pode crashar em alguns setups só de navegar).
+        // Use defaults do servidor; se precisar diferente, ajuste OPL_SMB_* no PC.
+        const smbShare = "PS2ISO";
+        const smbUser = "opl";
+
+        let hostFromUrl = "";
+        try {
+          const um = bu.match(/^https?:\/\/([^/:]+)/i);
+          if (um) { hostFromUrl = um[1]; }
+        } catch (eH) {
+          xlog(eH);
+        }
+
+        let listData = false;
+        const listTmp = PATHS.XMB + "temp/netiso_opl_list.json";
+        try {
+          if (!std.exists(PATHS.XMB + "temp")) { os.mkdir(PATHS.XMB + "temp"); }
+        } catch (eMk) { xlog(eMk); }
+
+        try {
+          MainMutex.unlock();
+          const req = new Request();
+          req.download(listUrl, listTmp);
+          MainMutex.lock();
+          if (std.exists(listTmp)) {
+            let rawList = "";
+            try {
+              rawList = std.loadFile(listTmp);
+            } catch (eLf) {
+              xlog(eLf);
+            }
+            try {
+              os.remove(listTmp);
+            } catch (eRm) {
+              xlog(eRm);
+            }
+            if (rawList && rawList.length > 0) {
+              try {
+                listData = JSON.parse(rawList);
+              } catch (eParse) {
+                xlog(eParse);
+                listData = false;
+              }
+            }
+          }
+        } catch (e) {
+          try {
+            MainMutex.lock();
+          } catch (eLk) {
+            xlog(eLk);
+          }
+          xlog(e);
+        }
+
+        if (!listData || !Array.isArray(listData) || listData.length < 1) {
+          failMsg(bu, "Lista indisponivel");
+          return;
+        }
+
+        const maxList = 400;
+        if (listData.length > maxList) {
+          listData = listData.slice(0, maxList);
+        }
+
+        const items = [];
+        for (let i = 0; i < listData.length; i++) {
+          const entry = listData[i];
+          if (!entry || typeof entry !== "object") { continue; }
+
+          const fileRaw = (entry.file != null) ? String(entry.file).trim() : "";
+          const nameRaw = (entry.name != null) ? String(entry.name).trim() : "";
+          const fname = fileRaw ? fileRaw : (nameRaw ? (nameRaw + ".iso") : ("game_" + String(i) + ".iso"));
+          const gid = (entry.gameid != null && String(entry.gameid).length > 2) ? String(entry.gameid).trim() : "";
+          const dispName = nameRaw ? nameRaw : getGameName(fname);
+
+          const item = {
+            Name: dispName,
+            Description: "",
+            Type: "ELF",
+            GameID: "",
+            Icon: "DISC_PS2",
+            Data: {
+              fname: fname,
+              baseUrl: bu,
+              gameid: gid,
+              dev: "opl",
+              path: "",
+              size: (Number(entry.size) > 0) ? Number(entry.size) : 0
+            },
+            Value: (function (isoFname, share, pcHost, smbUsr, paths, gidRaw) {
+              return {
+                Path: paths,
+                Args: [],
+                __keepNetForSmb: true,
+                Code: function () {
+                  xlog("OPL SMB: //" + pcHost + "/" + share + " user=" + smbUsr);
+                  xlog("OPL: Address=" + pcHost + " Share=" + share + " User=" + smbUsr + " (porta 4445 no Windows se usar o default do servidor)");
+                  xlog("OPL: jogos em DVD/ ou CD/ na partilha — no menu: Games > SMB > " + share + " > pasta (DVD) > " + isoFname.split("/").pop());
+                  xlog("OPL: caminho SMB completo do ISO: " + share + "/" + String(isoFname).replace(/\\/g, "/"));
+                  xlog("OPL: o XMB só arranca OPNPS2LD.ELF — não há argv para abrir este ISO automaticamente (limitação do OPL).");
+                  xlog("OPL: rede sem ir ao separador ETH — Definições → ETH device start mode = Automatic, ou conf_opl.cfg com eth_mode=2 (pack USB do servidor).");
+                  try {
+                    if (typeof oplPrepareSmbLaunchFromXmb === "function") {
+                      oplPrepareSmbLaunchFromXmb({
+                        baseUrl: bu,
+                        gameid: gidRaw,
+                        isoFileName: isoFname.split("/").pop(),
+                        isoRelPath: String(isoFname).replace(/\\/g, "/"),
+                        displayName: dispName,
+                        autostartSeconds: 5
+                      });
+                    } else {
+                      xlog("OPL XMB: falta oplPrepareSmbLaunchFromXmb() em system.js");
+                    }
+                  } catch (eOplCfg) {
+                    xlog(eOplCfg);
+                  }
+                  xlog("OPL: para arrancar sozinho um jogo — só o ultimo jogado: Remember last played + countdown (definições OPL).");
+                }
+              };
+            })(fname, smbShare, hostFromUrl, smbUser, oplPaths, gid)
+          };
+
+          items.push(item);
+        }
+
+        if (items.length < 1) {
+          failMsg("Lista vazia");
+          return;
+        }
+
+        if (items.length > 1) {
+          items.sort(function (a, b) {
+            const na = String(a.Name).toLowerCase();
+            const nb = String(b.Name).toLowerCase();
+            return na < nb ? -1 : (na > nb ? 1 : 0);
+          });
+        }
+
+        SubMenu.Items = items;
+        } catch (eTop) {
+          xlog(eTop);
+          failMsg("Erro ao abrir menu OPL SMB");
+        }
+      }
+    ]]>
+  </Init>
+</App>

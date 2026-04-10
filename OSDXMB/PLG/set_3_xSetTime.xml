@@ -1,0 +1,200 @@
+<App Icon="SET_TIME" Category="1" Type="SUBMENU">
+  <Name>
+    <String str="Date and Time Settings" />
+    <String str="Paramètres date et heure" />
+    <String str="Ajustes de Fecha y Hora" />
+    <String str="Datums- und Zeit-Einstellungen" />
+    <String str="Impostazioni di data e ora" />
+    <String str="Datum- en tijdinstellingen" />
+    <String str="Definições de Data e Hora" />
+  </Name>
+  <Description>
+    <String str="Adjust date and time settings." />
+    <String str="Réglez les paramètres de date et d'heure." />
+    <String str="Ajusta la configuración de fecha y hora." />
+    <String str="Datum- und Uhrzeiteinstellungen anpassen." />
+    <String str="Regola le impostazioni di data e ora." />
+    <String str="Pas de instellingen voor datum en tijd aan." />
+    <String str="Ajuste as configurações de data e hora." />
+  </Description>
+  <Option Type="CONTEXT" Icon="SET_CFG" Default="{UserConfig.DateFormat}">
+    <Name>
+      <String str="Date Format" />
+      <String str="Affichage de la date" />
+      <String str="Formato de la fecha" />
+      <String str="Datumsdarstellung" />
+      <String str="Formato della data" />
+      <String str="Datumweergave" />
+      <String str="Formato da Data" />
+    </Name>
+    <Description>
+      <String str="Set the order of display." />
+      <String str="Pour définir l'ordre d'affichage." />
+      <String str="Permite ajustar el orden de visualización." />
+      <String str="Stellen Sie die Reihenfolge der Anzeige." />
+      <String str="Seleziona l'ordine di visualizzazione." />
+      <String str="Set the order of display." />
+      <String str="Define a ordem de apresentação." />
+    </Description>
+    <Component Name="DD-MM"/>
+    <Component Name="MM-DD"/>
+    <Confirm>
+      <![CDATA[
+        function(index, item) {
+            UserConfig.DateFormat = index;
+            CfgMan.PropertySet("main.cfg", "dateFormat", index.toString());
+        }
+      ]]>
+    </Confirm>
+  </Option>
+  <Option Type="CONTEXT" Icon="SET_CFG" Default="{UserConfig.HourFormat}">
+    <Name>
+      <String str="Time Format" />
+      <String str="Affichage de l'heure" />
+      <String str="Formato de Hora" />
+      <String str="Zeitdarstellung" />
+      <String str="Formato dell'ora" />
+      <String str="Tijdweergave" />
+      <String str="Formato da Hora" />
+    </Name>
+    <Description>
+      <String str="Set the time display format." />
+      <String str="Pour choisir d'afficher l'heure." />
+      <String str="Establece el tipo de reloj de 12 o 24 horas." />
+      <String str="Setze das Zeitfomat." />
+      <String str="Seleziona il formato dell'ora." />
+      <String str="De tijdweergave op een 12- of 24-uursklok instellen." />
+      <String str="Define a apresentação da hora em relógio de 12 ou de 24 horas." />
+    </Description>
+    <Component>
+      <Name>
+        <String str="12-Hour" />
+        <String str="12 heures" />
+        <String str="12 horas" />
+        <String str="12 Stunden" />
+        <String str="12 ore" />
+        <String str="12 uur" />
+        <String str="12 horas" />
+      </Name>
+    </Component>
+    <Component>
+      <Name>
+        <String str="24-Hour" />
+        <String str="24 heures" />
+        <String str="24 horas" />
+        <String str="24 Stunden" />
+        <String str="24 ore" />
+        <String str="24 uur" />
+        <String str="24 horas" />
+      </Name>
+    </Component>
+    <Confirm>
+      <![CDATA[
+        function(index, item) {
+            UserConfig.HourFormat = index;
+            CfgMan.PropertySet("main.cfg", "hourFormat", index.toString());
+        }
+      ]]>
+    </Confirm>
+  </Option>
+  <Option Type="CONTEXT" Icon="SET_CFG" Default="{UserConfig.Timezone}">
+    <Name>
+      <String str="Time Zone" />
+      <String str="Fuseau horaire" />
+      <String str="Zona horaria" />
+      <String str="Zeitzone" />
+      <String str="Fuso orario" />
+      <String str="Tijdzone" />
+      <String str="Fuso Horário" />
+    </Name>
+    <Component Name="{DEFAULT}" Value="0"/>
+    <Component Name="GMT-11:00 - Midway Islands" Value="-11"/>
+    <Component Name="GMT-08:00 - Pacific (Can)" Value="-8"/>
+    <Component Name="GMT-08:00 - Tijuana" Value="-8"/>
+    <Component Name="GMT-07:00 - Mount. (Can)" Value="-7"/>
+    <Component Name="GMT-07:00 - Chihuahua" Value="-7"/>
+    <Component Name="GMT-06:00 - Central (Can)" Value="-6"/>
+    <Component Name="GMT-06:00 - Easter Island" Value="-6"/>
+    <Component Name="GMT-06:00 - Mexico City" Value="-6"/>
+    <Component Name="GMT-05:00 - East. (Can)" Value="-5"/>
+    <Component Name="GMT-04:00 - Atlan. (Can)" Value="-4"/>
+    <Component Name="GMT-04:00 - Santiago" Value="-4"/>
+    <Component Name="GMT-03:30 - Newfoundland" Value="-3.5"/>
+    <Component Name="GMT-03:00 - NW Greenland" Value="-3"/>
+    <Component Name="GMT-03:00 - SW Greenland" Value="-3"/>
+    <Component Name="GMT-03:00 - Buenos Aires" Value="-3"/>
+    <Component Name="GMT-02:00 - E Greenland" Value="-2"/>
+    <Component Name="GMT-01:00 - Praia" Value="-1"/>
+    <Component Name="GMT-01:00 - Tijuana" Value="-1"/>
+    <Component Name="GMT+00:00 - Reykjavik" Value="0"/>
+    <Component Name="GMT+00:00 - Dublin" Value="0"/>
+    <Component Name="GMT+00:00 - Casablanca" Value="0"/>
+    <Component Name="GMT+01:00 - Tirana" Value="1"/>
+    <Component Name="GMT+01:00 - Algiers" Value="1"/>
+    <Component Name="GMT+01:00 - Andorra la Vella" Value="1"/>
+    <Component Name="GMT+01:00 - Vienna" Value="1"/>
+    <Component Name="GMT+01:00 - Brussels" Value="1"/>
+    <Component Name="GMT+01:00 - Sarajevo" Value="1"/>
+    <Component Name="GMT+01:00 - Zagreb" Value="1"/>
+    <Component Name="GMT+01:00 - Prague" Value="1"/>
+    <Component Name="GMT+01:00 - Copenhagen" Value="1"/>
+    <Component Name="GMT+01:00 - Berlin" Value="1"/>
+    <Component Name="GMT+01:00 - Gibraltar" Value="1"/>
+    <Component Name="GMT+01:00 - Budapest" Value="1"/>
+    <Component Name="GMT+01:00 - Paris" Value="1"/>
+    <Component Name="GMT+01:00 - Rome" Value="1"/>
+    <Component Name="GMT+01:00 - Vaduz" Value="1"/>
+    <Component Name="GMT+01:00 - Monaco" Value="1"/>
+    <Component Name="GMT+01:00 - Amsterdam" Value="1"/>
+    <Component Name="GMT+01:00 - Luxembourg" Value="1"/>
+    <Component Name="GMT+01:00 - Skopje" Value="1"/>
+    <Component Name="GMT+01:00 - Valletta" Value="1"/>
+    <Component Name="GMT+02:00 - Sofia" Value="2"/>
+    <Component Name="GMT+02:00 - Nicosia" Value="2"/>
+    <Component Name="GMT+02:00 - Cairo" Value="2"/>
+    <Component Name="GMT+02:00 - Tallinn" Value="2"/>
+    <Component Name="GMT+02:00 - Helsinki" Value="2"/>
+    <Component Name="GMT+02:00 - Jerusalem" Value="2"/>
+    <Component Name="GMT+02:00 - Amman" Value="2"/>
+    <Component Name="GMT+02:00 - Riga" Value="2"/>
+    <Component Name="GMT+02:00 - Beirut" Value="2"/>
+    <Component Name="GMT+02:00 - Vilnius" Value="2"/>
+    <Component Name="GMT+02:00 - Windhoek" Value="2"/>
+    <Component Name="GMT+03:00 - Manama" Value="3"/>
+    <Component Name="GMT+03:00 - Minsk" Value="3"/>
+    <Component Name="GMT+03:00 - Baghdad" Value="3"/>
+    <Component Name="GMT+03:00 - Kuwait City" Value="3"/>
+    <Component Name="GMT+03:30 - Tehran" Value="3.5"/>
+    <Component Name="GMT+04:00 - Yerevan" Value="4"/>
+    <Component Name="GMT+04:00 - Baku" Value="4"/>
+    <Component Name="GMT+04:00 - Tbilisi" Value="4"/>
+    <Component Name="GMT+04:30 - Kabul" Value="4.5"/>
+    <Component Name="GMT+05:00 - W Kazakhstan" Value="5"/>
+    <Component Name="GMT+05:30 - Calcutta" Value="5.5"/>
+    <Component Name="GMT+05:45 - Kathmandu" Value="5.75"/>
+    <Component Name="GMT+06:00 - Dhaka" Value="6"/>
+    <Component Name="GMT+06:00 - C Kazakhstan" Value="6"/>
+    <Component Name="GMT+06:00 - Bishkek" Value="6"/>
+    <Component Name="GMT+07:00 - E Kazakhstan" Value="7"/>
+    <Component Name="GMT+08:00 - Perth" Value="8"/>
+    <Component Name="GMT+08:00 - Beijing" Value="8"/>
+    <Component Name="GMT+09:00 - Tokyo" Value="9"/>
+    <Component Name="GMT+10:00 - Sydney" Value="10"/>
+    <Component Name="GMT+10:30 - Lord Howe I." Value="10.5"/>
+    <Component Name="GMT+11:00 - New Caledonia" Value="11"/>
+    <Component Name="GMT+12:00 - Suva" Value="12"/>
+    <Component Name="GMT+13:00 - Wellington" Value="13"/>
+    <Confirm>
+      <![CDATA[
+        function(index, item) {
+            UserConfig.Timezone = index;
+            gTimezone = item.Value;
+            let config = CfgMan.Get("main.cfg");
+            config["timezone"] = index.toString();
+            config["gTimezone"] = gTimezone.toString();
+            CfgMan.Push("main.cfg", config);
+        }
+      ]]>
+    </Confirm>
+  </Option>
+</App>

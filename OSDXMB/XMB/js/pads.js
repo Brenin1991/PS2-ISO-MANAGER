@@ -1,0 +1,218 @@
+//////////////////////////////////////////////////////////////////////////
+///*				   			   PADS								  *///
+/// 				   		  										   ///
+///		This handles all the events that occur when a button is		   ///
+///							pressed or hold.						   ///
+/// 				   		  										   ///
+//////////////////////////////////////////////////////////////////////////
+
+let PADEVENTS = {};		// Object with Pad Events for each button.
+const PadSettings = {};
+PadSettings.Mode = 0;
+PadSettings.Port = 0;
+
+const pad = Pads.get(PadSettings.Port);
+function checkStates(BUTTON) { return (pad.justPressed(BUTTON) || pad.pressed(BUTTON)); }
+function PadsHandler() {
+
+	PadSettings.ConfirmButton = (UserConfig.ConfirmBtn === 0) ? Pads.CROSS : Pads.CIRCLE;
+	PadSettings.CancelButton = (UserConfig.ConfirmBtn === 0) ? Pads.CIRCLE : Pads.CROSS;
+    pad.update();
+    if (PadSettings.Mode === 0) { return; } // If Mode is 0, no events are set.
+
+		 if ((PADEVENTS.ACCEPT) 	&& (pad.justPressed(PadSettings.ConfirmButton))) 	{ PlayConfirmSfx(); PADEVENTS.ACCEPT(); }
+    else if ((PADEVENTS.CANCEL) 	&& (pad.justPressed(PadSettings.CancelButton))) 	{ PADEVENTS.CANCEL(); }
+	else if ((PADEVENTS.SQUARE)		&& (pad.justPressed(Pads.SQUARE)))					{ PADEVENTS.SQUARE(); }
+    else if ((PADEVENTS.TRIANGLE) 	&& (pad.justPressed(Pads.TRIANGLE))) 				{ PADEVENTS.TRIANGLE(); }
+    else if ((PADEVENTS.LEFT) 		&& (checkStates(Pads.LEFT))) 						{ PADEVENTS.LEFT(); }
+    else if ((PADEVENTS.RIGHT) 		&& (checkStates(Pads.RIGHT))) 						{ PADEVENTS.RIGHT(); }
+    else if ((PADEVENTS.UP) 		&& (checkStates(Pads.UP))) 							{ PADEVENTS.UP(); }
+    else if ((PADEVENTS.DOWN) 		&& (checkStates(Pads.DOWN))) 						{ PADEVENTS.DOWN(); }
+    else if ((PADEVENTS.L1) 		&& (checkStates(Pads.L1))) 						    { PADEVENTS.L1(); }
+    else if ((PADEVENTS.R1) 		&& (checkStates(Pads.R1))) 						    { PADEVENTS.R1(); }
+    else if ((PADEVENTS.L2) 		&& (checkStates(Pads.L2))) 						    { PADEVENTS.L2(); }
+    else if ((PADEVENTS.R2) 		&& (checkStates(Pads.R2))) 						    { PADEVENTS.R2(); }
+
+		 if ((pad.lx < -64) && (PADEVENTS.LEFT)) 	{ PADEVENTS.LEFT(); }
+	else if ((pad.lx >  64) && (PADEVENTS.RIGHT)) 	{ PADEVENTS.RIGHT(); }
+	else if ((pad.ly < -64) && (PADEVENTS.UP)) 		{ PADEVENTS.UP(); }
+	else if ((pad.ly >  64) && (PADEVENTS.DOWN)) 	{ PADEVENTS.DOWN(); }
+}
+function ClearPadEvents() {
+    // Reset the Object.
+
+    PADEVENTS = {
+        ACCEPT: false,
+        CANCEL: false,
+		SQUARE: false,
+        TRIANGLE: false,
+        LEFT: false,
+        RIGHT: false,
+        UP: false,
+        DOWN: false,
+        L1: false,
+        R1: false,
+        L2: false,
+        R2: false,
+        START: false,
+    }
+}
+function SetDashPadEvents(MODE) {
+	PadSettings.Mode = MODE;
+	ClearPadEvents(); // Any time a Mode changes, clean the existing events.
+    switch(MODE) {
+        case 1:	SetPadEvents_Main(); break;			// Mode 1: Pad Events for main dashboard.
+        case 2: SetPadEvents_Sub();	break;			// Mode 2: Pad Events for Sub Menus.
+        case 3: SetPadEvents_Context(); break;		// Mode 3: Pad Events for Context Menus.
+        case 4: SetPadEvents_Message(); break;		// Mode 4: Pad Events for Overlay Messages.
+    }
+}
+function SetPadEvents_Main() {
+    PADEVENTS.ACCEPT = () => {
+        const current = DashUI.Items.Current;
+        if (current >= DashUI.ItemCollection.length) { return; }
+		ExecuteItem(DashUI.ItemCollection.Current[current]);
+	};
+
+	PADEVENTS.TRIANGLE  = () => { OpenOptionBox(DashUI.ItemCollection.Current[DashUI.Items.Current]) };
+
+	PADEVENTS.LEFT  	= () => UIAnimationCategoryMove_Start(-1);
+	PADEVENTS.RIGHT 	= () => UIAnimationCategoryMove_Start(1);
+	PADEVENTS.UP 		= () => UIAnimationCategoryItemsMove_Start(-1);
+	PADEVENTS.DOWN 		= () => UIAnimationCategoryItemsMove_Start(1);
+
+    const obj = DashUI.Items;
+
+    PADEVENTS.L2 = () => {
+        if (obj.Current === 0) return;
+        obj.Current = 1;
+        obj.Next = obj.Current;
+        UIAnimationCategoryItemsMove_Start(-1);
+    };
+    PADEVENTS.R2 = () => {
+        const total = (DashUI.ItemCollection.Current.length - 1);
+        if (obj.Current === total) return;
+        obj.Current = total - 1;
+        obj.Next = obj.Current;
+        UIAnimationCategoryItemsMove_Start(1);
+    };
+
+    PADEVENTS.L1 = () => {
+        if (obj.Current === 0) return;
+        let delta = (obj.Current - 5 < 0) ? obj.Current : 5;
+        obj.Current = (obj.Current - delta) + 1;
+        obj.Next = obj.Current;
+        UIAnimationCategoryItemsMove_Start(-1);
+    };
+
+    PADEVENTS.R1 = () => {
+        const total = (DashUI.ItemCollection.Current.length - 1);
+        if (obj.Current === total) return;
+        let delta = (obj.Current + 5 > total) ? total - obj.Current : 5;
+        obj.Current = (obj.Current + delta) - 1;
+        obj.Next = obj.Current;
+        UIAnimationCategoryItemsMove_Start(1);
+    };
+}
+function SetPadEvents_Sub() {
+	PADEVENTS.ACCEPT 	= () => {
+        const current = DashUI.SubMenu.Items.Current;
+		const Items = DashUI.SubMenu.ItemCollection[DashUI.SubMenu.Level].Items;
+        if (current < 0 || current >= Items.length) return;
+        ExecuteItem(Items[current]);
+	};
+
+	PADEVENTS.TRIANGLE  = () => {
+        const cur = DashUI.SubMenu.Items.Current;
+        const Items = DashUI.SubMenu.ItemCollection[DashUI.SubMenu.Level].Items;
+        if (cur < 0 || cur >= Items.length) { return; }
+        OpenOptionBox(Items[cur]);
+    };
+
+	PADEVENTS.CANCEL 	= () => DashUIBackFromSubMenu();
+	PADEVENTS.LEFT  	= () => DashUIBackFromSubMenu();
+	PADEVENTS.UP 		= () => UIAnimationSubMenuItemsMove_Start(-1);
+    PADEVENTS.DOWN      = () => UIAnimationSubMenuItemsMove_Start(1);
+
+    const obj = DashUI.SubMenu.Items;
+
+    PADEVENTS.L2 = () => {
+        if (obj.Current === 0) return;
+        obj.Current = 1;
+        obj.Next = obj.Current;
+        UIAnimationSubMenuItemsMove_Start(-1);
+    };
+    PADEVENTS.R2 = () => {
+        const sub = DashUI.SubMenu;
+        const total = (sub.ItemCollection[sub.Level].Items.length - 1);
+        if (obj.Current === total) return;
+        obj.Current = total - 1;
+        obj.Next = obj.Current;
+        UIAnimationSubMenuItemsMove_Start(1);
+    };
+
+    PADEVENTS.L1 = () => {
+        if (obj.Current === 0) return;
+        let delta = (obj.Current - 5 < 0) ? obj.Current : 5;
+        obj.Current = (obj.Current - delta) + 1;
+        obj.Next = obj.Current;
+        UIAnimationSubMenuItemsMove_Start(-1);
+    };
+
+    PADEVENTS.R1 = () => {
+        const sub = DashUI.SubMenu;
+        const total = (sub.ItemCollection[sub.Level].Items.length - 1);
+        if (obj.Current === total) return;
+        let delta = (obj.Current + 5 > total) ? total - obj.Current : 5;
+        obj.Current = (obj.Current + delta) - 1;
+        obj.Next = obj.Current;
+        UIAnimationSubMenuItemsMove_Start(1);
+    };
+}
+function SetPadEvents_Context() {
+	PADEVENTS.ACCEPT	= () => DashUISelectContextItem();
+	PADEVENTS.CANCEL 	= () => DashUIBackFromContextMenu();
+	PADEVENTS.UP 		= () => UIAnimationContextMenuItemsMove_Start(-1);
+	PADEVENTS.DOWN 		= () => UIAnimationContextMenuItemsMove_Start(1);
+}
+function SetPadEvents_Message() {
+	if (DashUI.Dialog.Data[DashUI.Dialog.Level].ENTER_BTN) { PADEVENTS.ACCEPT 	= () => { if ('Confirm' in DashUI.Dialog.Data[DashUI.Dialog.Level]) { DashUI.Dialog.Data[DashUI.Dialog.Level].Confirm(); } }; }
+	if (DashUI.Dialog.Data[DashUI.Dialog.Level].BACK_BTN)  { PADEVENTS.CANCEL 	= () => { PlayCancelSfx(); UIAnimationDialogFade_Start(false); }; }
+}
+function SetPadEvents_Parental() {
+    PADEVENTS.LEFT 		= () => UIAnimationDialogMove_Start(-1, 4);
+    PADEVENTS.RIGHT 	= () => UIAnimationDialogMove_Start(1, 4);
+    PADEVENTS.UP 		= () => UIAnimationParentalDialogChange_Start(1);
+    PADEVENTS.DOWN 		= () => UIAnimationParentalDialogChange_Start(-1);
+}
+function SetPadEvents_Confirmation() {
+    PADEVENTS.LEFT 		= () => UIAnimationDialogMove_Start(-1, 2);
+    PADEVENTS.RIGHT 	= () => UIAnimationDialogMove_Start(1, 2);
+}
+function SetPadEvents_Information() {
+    PADEVENTS.LEFT 		= () => UIAnimationDialogInfoMove_Start(-1);
+    PADEVENTS.RIGHT 	= () => UIAnimationDialogInfoMove_Start(1);
+    PADEVENTS.UP 		= () => {
+		const data = DashUI.Dialog.Data[DashUI.Dialog.Level];
+		let next = -1;
+		for (let i = data.Selected - 1; i > -1; i--) {
+			if (data.Info[i].Selectable) { next = i; break; }
+		}
+		if (next !== -1) { UIAnimationDialogMove_Start(next - data.Selected, data.Info.length); }
+	}
+    PADEVENTS.DOWN 		= () => {
+		const data = DashUI.Dialog.Data[DashUI.Dialog.Level];
+		let next = -1;
+		for (let i = data.Selected + 1; i < data.Info.length; i++) {
+			if (data.Info[i].Selectable) { next = i; break; }
+		}
+		if (next !== -1) { UIAnimationDialogMove_Start(next - data.Selected, data.Info.length); }
+	}
+}
+
+//////////////////////////////////////////////////////////////////////////
+///*				   			 Init Work							  *///
+//////////////////////////////////////////////////////////////////////////
+
+SetDashPadEvents(0);
+console.log("INIT LIB: PADS COMPLETE");

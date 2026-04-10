@@ -1,0 +1,215 @@
+<App Type="SUBMENU" Category="5" Icon="GAME_MCTOOLS">
+  <Name>
+    <String str="Memory Card Utility" />
+    <String str="Utilitaire de Memory Card" />
+    <String str="Herramienta de Memory Card" />
+    <String str="Memory Card-Dienstprogramm" />
+    <String str="Utilità della Memory Card" />
+    <String str="Diensten voor Memory Card" />
+    <String str="Utilitário do Memory Card" />
+  </Name>
+  <Options>
+    <![CDATA[
+		function ReadMCDir(slot) {
+			// Initialize an empty array to hold the items
+			const directories = [];
+      const root = `mc${slot.toString()}:/`;
+			const dir = System.listDir(root);
+
+			// Loop through dir and collect directories into the desired structure
+			for (let i = 0; i < dir.length; i++) {
+				MainMutex.unlock();
+				const item = dir[i];
+				if ((!item.dir) || (item.name === ".") || (item.name === "..")) { MainMutex.lock(); continue; }
+				directories.push({
+					Name: parseIconSysTitle(`mc${slot.toString()}:/`, item.name),
+					Description: "",
+					Icon: 14,
+					FullPath: `${root}${item.name}/`
+				});
+				MainMutex.lock();
+			}
+
+			directories.sort((a, b) => {
+				const nameA = a.Name.toLowerCase();
+				const nameB = b.Name.toLowerCase();
+				return nameA < nameB ? -1 : nameA > nameB ? 1 : 0;
+			});
+
+			return directories;
+		}
+
+		const Items = [];
+
+		for (let j = 0; j < 2; j++)	{
+			if (os.readdir(`mc${j.toString()}:/`)[1] > -1) {
+				Items.push({
+					Name: `Memory Card ${(j + 1).toString()}`,
+					Icon: 16 + j,
+					Type: "SUBMENU"
+				});
+
+				Object.defineProperty(Items[Items.length - 1], "Value", {
+					get() {
+						return {
+							Items: [],
+							Default: 0,
+              Init: (SubMenu) => { SubMenu.Items = ReadMCDir(j); }
+            };
+          },
+					enumerable: true
+				});
+			}
+		}
+
+		return Items;
+    ]]>
+  </Options>
+  <Init>
+    <![CDATA[
+			function SetDescriptions(SubMenu) {
+				for (let j = 0; j < 2; j++)	{
+					MainMutex.unlock();
+					let mcInfo = System.getMCInfo(j);
+					MainMutex.lock();
+					let used = 8000 - mcInfo.freemem;
+					SubMenu.Items[j].Description = `${used} / 8000 Kb`;
+				}
+			}
+    ]]>
+  </Init>
+  <Context Name="FileContext" Type="OptionContext" Filter="SubDeviceOnly">
+    <Component Name="{COPY}" Icon="-1">
+      <Dialog Icon="-1" Title="" BG="false" Type="CONFIRMATION" BackBtn="true" ConfirmBtn="true">
+        <Text>
+          <String str="Do you want to copy the selected item?" />
+          <String str="Do you want to copy the selected item?" />
+          <String str="¿Seguro que desea copiar el objeto seleccionado?" />
+          <String str="Do you want to copy the selected item?" />
+          <String str="Do you want to copy the selected item?" />
+          <String str="Do you want to copy the selected item?" />
+          <String str="Do you want to copy the selected item?" />
+        </Text>
+        <Dialog Name="CopyItemDialogTask" Icon="-1" Title="" BG="false" Type="TEXT" Text="">
+          <Task>
+            <![CDATA[
+							function() {
+
+                UIAnimationDialogContentFade_Start(true);
+								const item = DashUI.SubMenu.HighlightedItem;
+								const srcPath = item.FullPath;
+                const destMC = (srcPath.startsWith("mc0")) ? 1 : 0;
+                const destMCInfo = System.getMCInfo(destMC);
+                const freeSpace = destMCInfo.freemem * 1024;
+                const srcFiles = System.listDir(srcPath).filter(item => !item.dir);
+                let totalSize = 0;
+                for (let i = 0; i < srcFiles.length; i++) { totalSize += srcFiles[i].size; }
+
+                if (totalSize > freeSpace) {
+									DashUI.Dialog.Data[DashUI.Dialog.Level].BACK_BTN = true;
+                  DashUI.Dialog.Data[DashUI.Dialog.Level].Text = getLocalText(XMBLANG.ERROR.NOT_ENOUGH_SPACE);
+                  return;
+                }
+
+                DashUI.Dialog.Data[DashUI.Dialog.Level].ElementIcon = "true";
+                DashUI.Dialog.Data[DashUI.Dialog.Level].Y = -25;
+                DashUI.Dialog.Data[DashUI.Dialog.Level].Align = "HCENTER";
+                DashUI.Dialog.Data[DashUI.Dialog.Level].Text = `${item.Name}\n${formatFileSize(totalSize)}`;
+                const destPath = `mc${destMC}:/${getPathWithoutRoot(srcPath)}/`;
+                os.mkdir(destPath);
+
+								let srcFile = srcFiles.shift();
+								const BLOCK_SIZE = 64 * 1024;
+								const buffer = new ArrayBuffer(BLOCK_SIZE);
+
+                let fdSrc = os.open(`${srcPath}${srcFile.name}`, os.O_RDONLY);
+								let fdDst = os.open(`${destPath}${srcFile.name}`, os.O_WRONLY | os.O_CREAT | os.O_TRUNC);
+
+								if (fdSrc < 0 || fdDst < 0) {
+									throw new Error("Error opening source or destination file");
+                }
+
+								let fileSize = srcFile.size;
+								let copied = 0;
+                let totalCopied = 0;
+
+								const copyText = `${getLocalText(XMBLANG.COPYING)}, ${getLocalText(XMBLANG.WAIT)}`;
+								DashUI.PbarAlpha = 0;
+                UICONST.LayersFg.push(() => {
+									const cfad = DashUI.Dialog.ContentFade;
+									const cfadProgress = (cfad.Running) ? getFadeProgress(cfad) : (cfad.In ? 1 : 0);
+									DashUI.PbarAlpha = ~~(128 * cfadProgress);
+                  DrawProgressBar({X: 0, Y: 35}, ~~((totalCopied / totalSize) * 100), copyText);
+                });
+
+								const CopIval = os.setInterval(() => {
+										if (DashUI.PbarAlpha < 120) { return; }
+										const toRead = Math.min(BLOCK_SIZE, fileSize - copied);
+										if (toRead <= 0) {
+                      if (srcFiles.length > 0) {
+												os.close(fdSrc);
+												os.close(fdDst);
+                        srcFile = srcFiles.shift();
+                        fileSize = srcFile.size;
+												fdSrc = os.open(`${srcPath}${srcFile.name}`, os.O_RDONLY);
+                        fdDst = os.open(`${destPath}${srcFile.name}`, os.O_WRONLY | os.O_CREAT | os.O_TRUNC);
+												copied = 0;
+                      }
+                      else {
+												UICONST.LayersFg.pop();
+												os.close(fdSrc);
+												os.close(fdDst);
+												os.clearInterval(CopIval);
+												UIAnimationDialogFade_Start(false);
+												return;
+                      }
+                    }
+
+										const bytesRead = os.read(fdSrc, buffer, 0, toRead);
+										let written = 0;
+										while (written < bytesRead) {
+											const bw = os.write(fdDst, buffer, written, bytesRead - written);
+											if (bw < 0) throw new Error("Error writing File");
+											written += bw;
+										}
+
+										copied += bytesRead;
+                    totalCopied += bytesRead;
+                }, 0);
+							}
+						]]>
+          </Task>
+        </Dialog>
+        <Event On="Confirm" Type="Transition" To="CopyItemDialogTask" Condition="DashUI.Dialog.Data[DashUI.Dialog.Level].Selected === 0" Exit="true"/>
+      </Dialog>
+    </Component>
+		<Component Name="{DELETE}" Icon="-1">
+			<Dialog Icon="-1" Title="" BG="false" Type="CONFIRMATION" BackBtn="true" ConfirmBtn="true">
+				<Text>
+					<String str="Do you want to delete the selected item?" />
+					<String str="Do you want to delete the selected item?" />
+					<String str="¿Seguro que deseas eliminar el objeto seleccionado?" />
+					<String str="Do you want to delete the selected item?" />
+					<String str="Do you want to delete the selected item?" />
+					<String str="Do you want to delete the selected item?" />
+					<String str="Do you want to delete the selected item?" />
+				</Text>
+				<Dialog Name="DeleteItemDialogTask" Icon="-1" Title="" BG="false" Type="TEXT" Text="{WAIT}">
+					<Task>
+						<![CDATA[
+							function() {
+								const collection = DashUI.SubMenu.ItemCollection[DashUI.SubMenu.Level].Items;
+                deleteItem(collection, DashUI.SubMenu.Items.Current);
+								if (collection.length < 1) { DashUI.SubMenu.Items.Current = -1; }
+								else if (DashUI.SubMenu.Items.Current >= collection.length) { DashUI.SubMenu.Items.Current = collection.length - 1; }
+								UIAnimationDialogFade_Start(false);
+							}
+						]]>
+					</Task>
+				</Dialog>
+				<Event On="Confirm" Type="Transition" To="DeleteItemDialogTask" Condition="DashUI.Dialog.Data[DashUI.Dialog.Level].Selected === 0" Exit="true"/>
+			</Dialog>
+		</Component>
+    <Confirm Event="OPEN_DIALOG" Dialog="item.Dialog"/>
+  </Context>
+</App>

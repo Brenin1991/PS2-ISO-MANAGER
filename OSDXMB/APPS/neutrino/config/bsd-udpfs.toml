@@ -1,0 +1,28 @@
+# Name of loaded config, to show to user
+name = "UDPFS driver"
+
+# Drivers this driver depends on (config file must exist)
+depends = ["i_dev9_hidden"]
+
+# Modules to load
+[[module]]
+file = "iomanX.irx"
+env = ["LE"]
+[[module]]
+file = "fileXio.irx"
+env = ["LE"]
+# smap.irx = uso normal. smap_udptty.irx = só debug (logs UDP para o PC em args ip= do PC).
+[[module]]
+file = "smap.irx"
+env = ["LE", "EE"]
+[[module]]
+file = "ministack.irx"
+# ip= da PS2; o XMB pode reescrever (udpbdSyncTomlPs2Ip). Ajuste gateway à tua LAN.
+args = ["ip=192.0.2.100", "netmask=255.255.255.0", "gateway=192.168.0.1"]
+env = ["LE", "EE"]
+[[module]]
+file = "udpfs_ioman.irx"
+env = ["LE"]
+[[module]]
+file = "udpfs_fhi.irx"
+env = ["EE"]

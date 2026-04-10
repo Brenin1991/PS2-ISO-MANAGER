@@ -1,0 +1,183 @@
+{
+  "NETSET0": {
+    "NAME": [
+      "Network Settings",
+      "Paramètres Réseau",
+      "Ajustes de Red",
+      "Netzwerkeinstellungen",
+      "Impostazioni di Rete",
+      "Netwerkinstellingen",
+      "Definições de Rede"
+    ],
+    "DESC": [
+      "Configure the system's network settings.",
+      "Configurez les paramètres réseau du système.",
+      "Configurar los ajustes de red del sistema.",
+      "Konfigurieren Sie die Netzwerkeinstellungen des Systems.",
+      "Configura le impostazioni di rete del sistema.",
+      "Configureer de netwerkinstellingen van het systeem.",
+      "Configure as definições de rede do sistema."
+    ]
+  },
+  "NETSET1": {
+    "NAME": [
+      "Settings and Connection Status List",
+      "Settings and Connection Status List",
+      "Ajustes y lista de estado de conexión",
+      "Settings and Connection Status List",
+      "Settings and Connection Status List",
+      "Settings and Connection Status List",
+      "Settings and Connection Status List"
+    ],
+    "DESC": [
+      "View current network settings.",
+      "View current network settings.",
+      "Puede visualizar los ajustes de red actuales.",
+      "View current network settings.",
+      "View current network settings.",
+      "View current network settings.",
+      "View current network settings."
+    ]
+  },
+  "NETSET2": {
+    "NAME": [
+      "Internet Connection",
+      "Connexion Internet",
+      "Conexión a Internet",
+      "Internetverbindung",
+      "Connessione Internet",
+      "Internetverbinding",
+      "Ligação à Internet"
+    ],
+    "DESC": [
+      "Set the system's connection to the Internet.",
+      "Set the system's connection to the Internet.",
+      "Conectar el sistema a Internet.",
+      "Set the system's connection to the Internet.",
+      "Set the system's connection to the Internet.",
+      "Set the system's connection to the Internet.",
+      "Set the system's connection to the Internet."
+    ]
+  },
+  "NET": {
+    "INIT_MSG": [
+      "Trying to connect, please wait...",
+      "Tentative de connexion, veuillez patienter...",
+      "Intentando conectar, por favor espere...",
+      "Versuch der Verbindung, bitte warten...",
+      "Tentativo di connessione, attendere prego...",
+      "Bezig met verbinden, even geduld a.u.b...",
+      "A tentar conectar, por favor aguarde..."
+    ],
+    "DOWNLOAD_PROGRESS": [
+      "Downloading game, please wait...",
+      "Téléchargement du jeu, veuillez patienter...",
+      "Descargando juego, por favor espere...",
+      "Spiel wird heruntergeladen, bitte warten...",
+      "Download del gioco in corso, attendere...",
+      "Game downloaden, even geduld...",
+      "A transferir o jogo, por favor aguarde..."
+    ],
+    "INIT_COMPLETE_MSG": [
+      "Connection successful.",
+      "Connexion réussie.",
+      "Conexión exitosa.",
+      "Verbindung erfolgreich.",
+      "Connessione riuscita.",
+      "Verbinding geslaagd.",
+      "Conexão bem-sucedida."
+    ],
+    "ERR_1": [
+      "Could not initialize Network.\nPlease check your connection and restart the console.",
+      "Impossible d'initialiser le réseau.\nVeuillez vérifier votre connexion et redémarrer la console.",
+      "No se pudo inicializar la red.\nCompruebe su conexión y reinicie la consola.",
+      "Netzwerk konnte nicht initialisiert werden.\nBitte überprüfen Sie Ihre Verbindung und starten Sie die Konsole neu.",
+      "Impossibile inizializzare la rete.\nControlla la tua connessione e riavvia la console.",
+      "Kan netwerk niet initialiseren.\nControleer uw verbinding en start de console opnieuw op.",
+      "Não foi possível inicializar a Rede.\nVerifique a sua ligação e reinicie a consola."
+    ],
+    "ERR_2": [
+      "Your console is not connected to the Network.",
+      "Votre console n'est pas connectée au réseau.",
+      "Su consola no está conectada a la red.",
+      "Ihre Konsole ist nicht mit dem Netzwerk verbunden.",
+      "La tua console non è connessa alla rete.",
+      "Uw console is niet verbonden met het netwerk.",
+      "A sua consola não está ligada à Rede."
+    ],
+    "DOWNLOAD_OK": [
+      "Download complete.",
+      "Téléchargement terminé.",
+      "Descarga completa.",
+      "Download abgeschlossen.",
+      "Download completato.",
+      "Download voltooid.",
+      "Transferência concluída."
+    ],
+    "DOWNLOAD_FAIL": [
+      "Download failed.",
+      "Échec du téléchargement.",
+      "Descarga fallida.",
+      "Download fehlgeschlagen.",
+      "Download non riuscito.",
+      "Download mislukt.",
+      "Falha na transferência."
+    ],
+    "DOWNLOAD_EXISTS": [
+      "This game is already on the storage device.",
+      "Ce jeu est déjà sur le périphérique.",
+      "Este juego ya está en el dispositivo.",
+      "Dieses Spiel ist bereits auf dem Speicher.",
+      "Questo gioco è già sul dispositivo.",
+      "Deze game staat al op het apparaat.",
+      "O jogo já está no dispositivo."
+    ]
+  },
+  "NET_ART": {
+    "TITLE": [
+      "Update Game Resources",
+      "Update Game Resources",
+      "Actualizar Recursos de Juegos",
+      "Update Game Resources",
+      "Update Game Resources",
+      "Update Game Resources",
+      "Update Game Resources"
+    ],
+    "CHECK": [
+      "Checking available games, please wait...",
+      "Vérification des jeux disponibles, veuillez patienter...",
+      "Comprobando juegos disponibles, por favor espere...",
+      "Überprüfung verfügbarer Spiele, bitte warten...",
+      "Controllo dei giochi disponibili, attendere prego...",
+      "Beschikbare spellen aan het controleren, even geduld a.u.b...",
+      "A verificar jogos disponíveis, por favor aguarde..."
+    ],
+    "DOWNLOADING": [
+      "Downloading available resources, please wait...",
+      "Téléchargement des ressources disponibles, veuillez patienter...",
+      "Descargando recursos disponibles, por favor espere...",
+      "Herunterladen verfügbarer Ressourcen, bitte warten...",
+      "Download delle risorse disponibili, attendere prego...",
+      "Beschikbare bronnen aan het downloaden, even geduld a.u.b...",
+      "A transferir recursos disponíveis, por favor aguarde..."
+    ],
+    "UNAVAILABLE": [
+      "There are no new available resources for your games.",
+      "Il n'y a pas de nouvelles ressources de jeu disponibles pour vos jeux.",
+      "No hay nuevos recursos disponibles para sus juegos.",
+      "Es sind keine neuen Spielressourcen für Ihre Spiele verfügbar.",
+      "There are no new available resources for your games.",
+      "There are no new available resources for your games.",
+      "There are no new available resources for your games."
+    ],
+    "SUCCESS": [
+      "Game Resources updated successfully.",
+      "Game Resources updated successfully.",
+      "Recursos de Juegos actualizados correctamente.",
+      "Game Resources updated successfully.",
+      "Game Resources updated successfully.",
+      "Game Resources updated successfully.",
+      "Game Resources updated successfully."
+    ]
+  }
+}

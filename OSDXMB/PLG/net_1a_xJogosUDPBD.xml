@@ -1,0 +1,220 @@
+<App Type="SUBMENU" Category="6" Icon="NET_PACKAGE" Name="Jogos via rede (Neutrino)" Description="Default UDPFS (netiso udpfs_net=1); bloco: udpfs_net=0 e PC UDPBD_NET_MODE=block">
+  <Options>
+    <![CDATA[
+      return [];
+    ]]>
+  </Options>
+  <Init>
+    <![CDATA[
+      function(SubMenu) {
+        function failMsg(msg, title) {
+          SubMenu.Items = [{
+            Name: (title != null && title !== "") ? title : "UDPBD",
+            Description: msg,
+            Icon: "NET_PACKAGE",
+            Type: "SUBMENU",
+            Value: { Default: 0, Items: [] }
+          }];
+        }
+        try {
+        if (typeof netUdpbdPrepareIso !== "function" || typeof neutrinoSaveLastPlayedEntry !== "function") {
+          failMsg("Copie system.js atual para a XMB", "UDPBD");
+          return;
+        }
+        function baseUrl() {
+          try {
+            const c = CfgMan.Get("netiso.cfg");
+            let u = c.url || c.URL;
+            if (!u || typeof u !== "string") { u = "http://192.168.0.140:5000"; }
+            return u.replace(/\/$/, "");
+          } catch (eCfg) {
+            xlog(eCfg);
+            return "http://192.168.0.140:5000";
+          }
+        }
+
+        const listUrl = baseUrl() + "/list";
+        const bu = baseUrl();
+        const neutPath = PATHS.Neutrino + "neutrino.elf";
+
+        if (UserConfig.Network !== 1 || NetInfo.IP === "-") {
+          SubMenu.Items = [{
+            Name: "Rede desativada",
+            Description: "Ative a rede em Definições",
+            Icon: "SET_NET",
+            Type: "SUBMENU",
+            Value: { Default: 0, Items: [] }
+          }];
+          return;
+        }
+
+        let listData = false;
+        const listTmp = PATHS.XMB + "temp/netiso_udpbd_list.json";
+        try {
+          if (!std.exists(PATHS.XMB + "temp")) { os.mkdir(PATHS.XMB + "temp"); }
+        } catch (eMk) { xlog(eMk); }
+
+        try {
+          MainMutex.unlock();
+          const req = new Request();
+          req.download(listUrl, listTmp);
+          MainMutex.lock();
+          if (std.exists(listTmp)) {
+            let rawList = "";
+            try {
+              rawList = std.loadFile(listTmp);
+            } catch (eLf) {
+              xlog(eLf);
+            }
+            try {
+              os.remove(listTmp);
+            } catch (eRm) {
+              xlog(eRm);
+            }
+            if (rawList && rawList.length > 0) {
+              try {
+                listData = JSON.parse(rawList);
+              } catch (eParse) {
+                xlog(eParse);
+                listData = false;
+              }
+            }
+          }
+        } catch (e) {
+          try {
+            MainMutex.lock();
+          } catch (eLk) {
+            xlog(eLk);
+          }
+          xlog(e);
+        }
+
+        if (!listData || !Array.isArray(listData) || listData.length < 1) {
+          failMsg(bu, "Lista indisponivel");
+          return;
+        }
+
+        const items = [];
+        for (let i = 0; i < listData.length; i++) {
+          const entry = listData[i];
+          if (!entry || typeof entry !== "object") { continue; }
+
+          const fileRaw = (entry.file != null) ? String(entry.file).trim() : "";
+          const nameRaw = (entry.name != null) ? String(entry.name).trim() : "";
+          const fname = fileRaw ? fileRaw : (nameRaw ? (nameRaw + ".iso") : ("game_" + String(i) + ".iso"));
+          const gid = (entry.gameid != null && String(entry.gameid).length > 2) ? String(entry.gameid).trim() : "";
+          const dispName = nameRaw ? nameRaw : getGameName(fname);
+
+          const item = {
+            Name: dispName,
+            Description: "",
+            Type: "ELF",
+            GameID: "",
+            Icon: "DISC_PS2",
+            Data: {
+              fname: fname,
+              baseUrl: bu,
+              gameid: gid,
+              dev: "udpbd",
+              path: "",
+              size: (Number(entry.size) > 0) ? Number(entry.size) : 0
+            },
+            Value: (function (isoFname, base, metaGid) {
+              return {
+                Path: neutPath,
+                Args: [],
+                Code: function () {
+                  if (typeof netUdpbdPrepareIso !== "function") { return; }
+                  const nc = CfgMan.Get("netiso.cfg");
+                  const forced = (nc.udpbd_ps2_ip && String(nc.udpbd_ps2_ip).trim())
+                    ? String(nc.udpbd_ps2_ip).trim()
+                    : "";
+                  const useIp = (forced && /^\d{1,3}(\.\d{1,3}){3}$/.test(forced)) ? forced : NetInfo.IP;
+                  if (typeof udpbdSyncTomlPs2Ip === "function") {
+                    const synced = udpbdSyncTomlPs2Ip(useIp);
+                    if (!synced) {
+                      xlog("UDP: falha ao escrever ip= nos TOML — edite bsd-udpfs.toml (ministack) e bsd-udpbd.toml; netiso udpbd_ps2_ip=");
+                    } else {
+                      xlog("UDP: ip PS2 nos TOML = " + useIp);
+                    }
+                  }
+                  if (typeof neutrinoCheckNetStackFiles === "function") {
+                    // Em "Jogos via rede" usamos UDPFS (pasta). Se faltar módulo/config, aborta antes de cair no browser.
+                    if (!neutrinoCheckNetStackFiles("udpfs")) {
+                      if (gExit && gExit.Elf) { gExit.Elf.__skipLoad = true; }
+                      return;
+                    }
+                  }
+                  if (!netUdpbdPrepareIso(base, isoFname)) {
+                    xlog("UDPBD: falha ao preparar " + isoFname);
+                    if (gExit && gExit.Elf) { gExit.Elf.__skipLoad = true; }
+                    return;
+                  }
+                  try {
+                    if (typeof xmbReportPlayingToPc === "function") {
+                      const selR = DashUI.SelectedItem;
+                      const dn = selR && selR.Name ? String(selR.Name) : isoFname;
+                      let idRep = "";
+                      let g2 = (selR && selR.GameID) ? String(selR.GameID).trim() : "";
+                      if (g2.length < 4 && metaGid) { g2 = String(metaGid).trim(); }
+                      if (g2.length > 3) {
+                        idRep = (typeof normalizePs2ProductCode === "function" ? normalizePs2ProductCode(g2) : null) || g2;
+                      }
+                      xmbReportPlayingToPc(base, isoFname, dn, idRep);
+                    }
+                  } catch (eRep) {
+                    xlog(eRep);
+                  }
+                  const sel = DashUI.SelectedItem;
+                  let launchId = "";
+                  let g = (sel && sel.GameID) ? String(sel.GameID).trim() : "";
+                  if (g.length < 4 && metaGid) { g = String(metaGid).trim(); }
+                  if (g.length > 3) {
+                    launchId = normalizePs2ProductCode(g) || g;
+                  }
+                  if (gExit && gExit.Elf) {
+                    gExit.Elf.Args = getISOgameArgs({
+                      udpbdNet: true,
+                      dev: "udpbd",
+                      path: "mass0:/",
+                      fname: isoFname,
+                      id: launchId,
+                      mt: "dvd"
+                    });
+                    // Flag explícito: este boot é via rede (UDPFS/UDPBD). Usado pelo ExecuteELF para pausar.
+                    gExit.Elf.__udpbdNet = true;
+                  }
+                  if (typeof neutrinoSaveLastPlayedEntry === "function") {
+                    neutrinoSaveLastPlayedEntry();
+                  }
+                }
+              };
+            })(fname, bu, gid)
+          };
+
+          items.push(item);
+        }
+
+        if (items.length < 1) {
+          failMsg("Lista vazia");
+          return;
+        }
+
+        if (items.length > 1) {
+          items.sort(function (a, b) {
+            const na = String(a.Name);
+            const nb = String(b.Name);
+            if (na.localeCompare) { return na.localeCompare(nb); }
+            return na < nb ? -1 : (na > nb ? 1 : 0);
+          });
+        }
+
+        SubMenu.Items = items;
+        } catch (eTop) {
+          xlog(eTop);
+          failMsg("Erro ao abrir menu UDPBD");
+        }
+      }
+    ]]>
+  </Init>
+</App>

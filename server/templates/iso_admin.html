@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ISO library — OSD-XMB</title>
+  <style>
+    :root { --bg: #1a1d23; --card: #252830; --text: #e8eaef; --muted: #8b919a; --acc: #2d7efc; }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, Segoe UI, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 1.5rem; line-height: 1.45; }
+    h1 { font-size: 1.35rem; margin: 0 0 0.5rem; }
+    p.sub { color: var(--muted); margin: 0 0 1.25rem; font-size: 0.9rem; }
+    .card { background: var(--card); border-radius: 10px; padding: 1.25rem; margin-bottom: 1.25rem; max-width: 720px; }
+    label { display: block; font-size: 0.8rem; color: var(--muted); margin: 0.75rem 0 0.25rem; }
+    input[type="text"], input[type="file"], select { width: 100%; padding: 0.5rem 0.6rem; border-radius: 6px; border: 1px solid #3a4049; background: #1e2229; color: var(--text); }
+    button { background: var(--acc); color: #fff; border: 0; padding: 0.55rem 1.1rem; border-radius: 6px; cursor: pointer; font-weight: 600; margin-top: 1rem; }
+    button:hover { filter: brightness(1.08); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    th, td { text-align: left; padding: 0.45rem 0.5rem; border-bottom: 1px solid #333944; }
+    th { color: var(--muted); font-weight: 600; }
+    .ok { color: #5c7; }
+    .no { color: var(--muted); }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+    @media (max-width: 640px) { .row { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <h1>Biblioteca de ISOs (PS2)</h1>
+  <p class="sub">Defina nome de exibição, código do jogo (ex.: SLES_539.67) e imagens (pode enviar JPG/PNG qualquer tamanho). <strong>ISO nova:</strong> o ficheiro é guardado como <code>código_nome.iso</code> (ex.: <code>SCUS_974.81_God_of_War_2.iso</code>), não com o nome original do upload. O servidor converte arte para: <strong>ICON0</strong> 128×128 RGBA 32&nbsp;bit 72&nbsp;dpi; <strong>PIC1</strong> 640×480 paleta 8&nbsp;bit 72&nbsp;dpi; <strong>PIC2</strong> 310×250 RGBA 32&nbsp;bit 72&nbsp;dpi. Requer <code>pip install Pillow</code> no PC.</p>
+
+  <div class="card">
+    <form method="post" action="{{ url_for('iso_admin_save') }}" enctype="multipart/form-data">
+      <div class="row">
+        <div>
+          <label for="gameid">Código do jogo (Game ID)</label>
+          <input type="text" id="gameid" name="gameid" placeholder="SLES_XXX.XX" required pattern="[A-Za-z0-9._\-]{4,32}">
+        </div>
+        <div>
+          <label for="display_name">Nome na lista</label>
+          <input type="text" id="display_name" name="display_name" placeholder="Nome bonito" required>
+        </div>
+      </div>
+      <label for="iso">Ficheiro ISO (opcional se já existir na pasta)</label>
+      <input type="file" id="iso" name="iso" accept=".iso">
+      <label for="existing_iso">Ou escolher ISO já na pasta</label>
+      <select id="existing_iso" name="existing_iso">
+        <option value="">— enviar ISO novo acima —</option>
+        {% for f in existing_files %}
+        <option value="{{ f }}">{{ f }}</option>
+        {% endfor %}
+      </select>
+      <label for="description">Descrição (opcional, interface cliente)</label>
+      <textarea id="description" name="description" rows="3" placeholder="Resumo ou notas"></textarea>
+      <label for="cover">Capa biblioteca (opcional, PNG/JPG — só para a UI)</label>
+      <input type="file" id="cover" name="cover" accept="image/png,image/jpeg,.png,.jpg">
+      <label for="icon0">icon0.png (ícone)</label>
+      <input type="file" id="icon0" name="icon0" accept="image/png,image/jpeg,.png,.jpg">
+      <label for="pic1">pic1.png (fundo / capa)</label>
+      <input type="file" id="pic1" name="pic1" accept="image/png,image/jpeg,.png,.jpg">
+      <label for="pic2">pic2.png (opcional)</label>
+      <input type="file" id="pic2" name="pic2" accept="image/png,image/jpeg,.png,.jpg">
+      <button type="submit">Guardar</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2 style="font-size:1rem; margin:0 0 0.75rem;">ISOs registados</h2>
+    <table>
+      <thead><tr><th>Ficheiro</th><th>Nome</th><th>Game ID</th><th>Descrição</th><th>Arte</th><th>Capa UI</th></tr></thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td>{{ row.file }}</td>
+          <td>{{ row.name }}</td>
+          <td><code>{{ row.gameid or "—" }}</code></td>
+          <td style="max-width:14rem;font-size:0.82rem;color:var(--muted)">{{ (row.description or "")[:120] }}{% if row.description and row.description|length > 120 %}…{% endif %}</td>
+          <td class="{{ 'ok' if row.has_art else 'no' }}">{{ "sim" if row.has_art else "não" }}</td>
+          <td class="{{ 'ok' if row.has_cover else 'no' }}">{{ "sim" if row.has_cover else "não" }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6">Nenhuma ISO na pasta <code>isos/</code></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</body>
+</html>

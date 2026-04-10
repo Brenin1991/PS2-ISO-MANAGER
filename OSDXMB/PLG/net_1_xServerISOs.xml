@@ -1,0 +1,207 @@
+<App Type="SUBMENU" Category="6" Icon="NET_PACKAGE" Name="Repositório de Jogos" Description="Repositório de Jogos via HTTP">
+  <Options>
+    <![CDATA[
+      return [];
+    ]]>
+  </Options>
+  <Init>
+    <![CDATA[
+      function(SubMenu) {
+        function baseUrl() {
+          const c = CfgMan.Get("netiso.cfg");
+          let u = c.url || c.URL;
+          if (!u || typeof u !== "string") { u = "http://192.168.0.140:5000"; }
+          return u.replace(/\/$/, "");
+        }
+        function bsdDevForCwd() {
+          const root = getRootName(CWD) + ":";
+          const bdm = System.getBDMInfo(root);
+          if (!bdm) { return "usb"; }
+          switch (bdm.name) {
+            case "ata":
+            case "usb": return bdm.name;
+            case "sdc": return "mx4sio";
+            case "sd": return "ilink";
+            case "udp": return "udpbd";
+            default: return "usb";
+          }
+        }
+        const isoDir = getRootName(CWD) + ":/DVD/";
+        const listUrl = baseUrl() + "/list";
+        const dev = bsdDevForCwd();
+
+        if (UserConfig.Network !== 1 || NetInfo.IP === "-") {
+          SubMenu.Items = [{
+            Name: "Rede desativada",
+            Description: "Ative a rede em Definições",
+            Icon: "SET_NET",
+            Type: "SUBMENU",
+            Value: { Default: 0, Items: [] }
+          }];
+          return;
+        }
+
+        let listData = false;
+        const listTmp = PATHS.XMB + "temp/netiso_list.json";
+        try {
+          if (!std.exists(PATHS.XMB + "temp")) { os.mkdir(PATHS.XMB + "temp"); }
+        } catch (eMk) { xlog(eMk); }
+        try {
+          if (!std.exists(isoDir)) { os.mkdir(isoDir); }
+        } catch (e0) { xlog(e0); }
+
+        try {
+          MainMutex.unlock();
+          const req = new Request();
+          req.download(listUrl, listTmp);
+          MainMutex.lock();
+          if (std.exists(listTmp)) {
+            listData = JSON.parse(std.loadFile(listTmp));
+            os.remove(listTmp);
+          }
+        } catch (e) {
+          MainMutex.lock();
+          xlog(e);
+        }
+
+        if (!listData || !Array.isArray(listData) || listData.length < 1) {
+          SubMenu.Items = [{
+            Name: "Lista indisponível",
+            Description: baseUrl(),
+            Icon: "NET_PACKAGE",
+            Type: "SUBMENU",
+            Value: { Default: 0, Items: [] }
+          }];
+          return;
+        }
+
+        function SetNetIsoIcons(SubMenu) {
+          const selected = SubMenu.Default;
+          const start = selected - 5;
+          const end = SubMenu.Items.length;
+          for (let j = start; j < end; j++) {
+            MainMutex.unlock();
+            if (j < 0) { MainMutex.lock(); continue; }
+            if (j > selected + 5) { MainMutex.lock(); break; }
+            const game = SubMenu.Items[j];
+            if (!game || !game.Data) { MainMutex.lock(); continue; }
+            delete game.Icon;
+            getNetIsoServerListGameID(game);
+            MainMutex.lock();
+          }
+        }
+
+        const items = [];
+        const bu = baseUrl();
+        for (let i = 0; i < listData.length; i++) {
+          const entry = listData[i];
+          const fname = entry.file ? entry.file : (entry.name + ".iso");
+          const entrySize = (Number(entry.size) > 0) ? Number(entry.size) : 0;
+          const gid = (entry.gameid && String(entry.gameid).length > 2) ? String(entry.gameid).trim() : "";
+          const item = {
+            Name: entry.name ? entry.name : getGameName(fname),
+            Description: "",
+            Type: "DIALOG",
+            GameID: "",
+            Data: {
+              path: isoDir,
+              fname: fname,
+              dev: dev,
+              mt: "dvd",
+              id: "",
+              baseUrl: bu,
+              size: entrySize,
+              gameid: gid
+            },
+            Value: (function(d) {
+              return {
+                Icon: 28,
+                Title: d.displayName,
+                BG: false,
+                Type: "TEXT",
+                Text: XMBLANG.NET.DOWNLOAD_PROGRESS,
+                NetIsoShowPct: true,
+                Fun: function() {
+                  let message = getLocalText(XMBLANG.NET.DOWNLOAD_OK);
+                  let deferArt = false;
+                  gNetIsoDl.showLivePct = false;
+                  gNetIsoDl.livePctLine = "";
+                  try {
+                    const dest = d.path + d.fname;
+                    const dl = d.baseUrl + "/download/" + encodeURIComponent(d.fname);
+                    if (!std.exists(d.path)) {
+                      try { os.mkdir(d.path); } catch (e1) { xlog(e1); }
+                    }
+                    if (!std.exists(dest)) {
+                      const ok = netIsoDownloadWithProgress(dl, dest, d.size, d.fname, false, false);
+                      message = ok ? getLocalText(XMBLANG.NET.DOWNLOAD_OK) : getLocalText(XMBLANG.NET.DOWNLOAD_FAIL);
+                      if (!ok) { xlog("Net ISO: download failed " + d.fname); }
+                      else if (d.gameid && d.gameid.length > 3) { deferArt = true; }
+                    } else {
+                      message = getLocalText(XMBLANG.NET.DOWNLOAD_EXISTS);
+                      if (d.gameid && d.gameid.length > 3) { deferArt = true; }
+                    }
+                  } catch (eNet) {
+                    xlog(eNet);
+                    message = getLocalText(XMBLANG.NET.DOWNLOAD_FAIL);
+                  }
+                  gNetIsoDl.showLivePct = false;
+                  gNetIsoDl.livePctLine = "";
+                  MainMutex.unlock();
+                  try {
+                    UIAnimationDialogContentFade_Start(false);
+                    DashUI.AnimationQueue.push(() => {
+                      if (DashUI.Dialog.ContentFade.Running) { return false; }
+                      const dlg = DashUI.Dialog.Data[DashUI.Dialog.Level];
+                      dlg.BACK_BTN = true;
+                      dlg.Text = message;
+                      UIAnimationDialogContentFade_Start(true);
+                      return true;
+                    });
+                  } finally {
+                    MainMutex.lock();
+                  }
+                  if (deferArt) {
+                    const buA = d.baseUrl;
+                    const gidA = d.gameid;
+                    Tasks.Push(function() {
+                      MainMutex.unlock();
+                      try {
+                        netIsoFetchServerArt(buA, gidA);
+                      } catch (eArt) {
+                        xlog(eArt);
+                      } finally {
+                        MainMutex.lock();
+                      }
+                    });
+                  }
+                }
+              };
+            })({
+              path: isoDir,
+              fname: fname,
+              baseUrl: bu,
+              size: entrySize,
+              gameid: gid,
+              displayName: (entry.name ? entry.name : getGameName(fname))
+            })
+          };
+          Object.defineProperty(item, "Icon", {
+            get() {
+              delete this.Icon;
+              this.Icon = -2;
+              Tasks.Push(() => getNetIsoServerListGameID(this, true));
+            },
+            enumerable: true,
+            configurable: true
+          });
+          items.push(item);
+        }
+
+        if (items.length > 1) { items.sort((a, b) => a.Name.localeCompare(b.Name)); }
+        SubMenu.Items = items;
+        SetNetIsoIcons(SubMenu);
+      }
+    ]]>
+  </Init>
+</App>

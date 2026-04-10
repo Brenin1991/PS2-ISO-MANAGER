@@ -1,0 +1,107 @@
+<App Type="SUBMENU" Category="6" Icon="NET_PACKAGE" Name="PS2 Online" Description="Online: Jogos e salas (ps2online.com)">
+  <Options>
+    <![CDATA[
+      return [];
+    ]]>
+  </Options>
+  <Init>
+    <![CDATA[
+      function(SubMenu) {
+        function baseUrl() {
+          const c = CfgMan.Get("ps2online.cfg");
+          let u = c.url || c.URL;
+          if (!u || typeof u !== "string") { u = "http://192.168.0.140:5000"; }
+          return u.replace(/\/$/, "");
+        }
+        const jsonUrl = baseUrl() + "/ps2online/games";
+        const jsonTmp = PATHS.XMB + "temp/ps2online_games.json";
+
+        if (UserConfig.Network !== 1 || NetInfo.IP === "-") {
+          SubMenu.Items = [{
+            Name: "Rede desativada",
+            Description: "Ative a rede em Definições",
+            Icon: "SET_NET",
+            Type: "SUBMENU",
+            Value: { Default: 0, Items: [] }
+          }];
+          return;
+        }
+
+        let data = false;
+        try {
+          if (!std.exists(PATHS.XMB + "temp")) { os.mkdir(PATHS.XMB + "temp"); }
+        } catch (eMk) { xlog(eMk); }
+        try {
+          MainMutex.unlock();
+          const req = new Request();
+          req.download(jsonUrl, jsonTmp);
+          MainMutex.lock();
+          if (std.exists(jsonTmp)) {
+            data = JSON.parse(std.loadFile(jsonTmp));
+            os.remove(jsonTmp);
+          }
+        } catch (e) {
+          MainMutex.lock();
+          xlog(e);
+        }
+
+        if (!data || typeof data !== "object") {
+          SubMenu.Items = [{
+            Name: "Dados indisponíveis",
+            Description: jsonUrl,
+            Icon: "SET_NET",
+            Type: "SUBMENU",
+            Value: { Default: 0, Items: [] }
+          }];
+          return;
+        }
+
+        const err = data.error ? String(data.error) : "";
+        const games = Array.isArray(data.games) ? data.games : [];
+        const items = [];
+
+        if (err && games.length < 1) {
+          items.push({
+            Name: "Erro ao atualizar",
+            Description: err.length > 120 ? err.slice(0, 117) + "..." : err,
+            Icon: "SET_NET",
+            Type: "SUBMENU",
+            Value: { Default: 0, Items: [] }
+          });
+          SubMenu.Items = items;
+          return;
+        }
+
+        if (games.length < 1) {
+          items.push({
+            Name: "Nenhum jogo com atividade",
+            Description: "ps2online.com (cache 5 min)",
+            Icon: "SET_NET",
+            Type: "SUBMENU",
+            Value: { Default: 0, Items: [] }
+          });
+          SubMenu.Items = items;
+          return;
+        }
+
+        for (let i = 0; i < games.length; i++) {
+          const g = games[i];
+          const n = g.name ? String(g.name) : "?";
+          const on = (g.online !== undefined) ? Number(g.online) : 0;
+          const rm = (g.rooms !== undefined) ? Number(g.rooms) : 0;
+          const lg = (g.logins_last_hour !== undefined) ? Number(g.logins_last_hour) : 0;
+          const desc = "Online: " + on + " · Salas: " + rm + " · Logins (hora): " + lg;
+          items.push({
+            Name: n.length > 52 ? n.slice(0, 49) + "..." : n,
+            Description: desc,
+            Icon: "NET_PACKAGE",
+            Type: "SUBMENU",
+            Value: { Default: 0, Items: [] }
+          });
+        }
+
+        SubMenu.Items = items;
+      }
+    ]]>
+  </Init>
+</App>

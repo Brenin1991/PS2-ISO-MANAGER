@@ -137,3 +137,51 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# —— Projeto: não versionar dados locais, ISOs, media pesada, DB ——
+# ISOs / imagens de disco (qualquer pasta)
+*.iso
+*.ISO
+*.gcm
+*.ciso
+*.zso
+
+# Servidor Flask — biblioteca, capas, arte OPL, pasta de ISOs por defeito
+server/isos/
+server/iso_library.db
+server/iso_library.json
+server/iso_covers/
+server/iso_art/
+
+# SQLite auxiliar
+*.db-shm
+*.db-wal
+
+# Python
+server/.venv/
+.venv/
+venv/
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# XMB na consola — ficheiros temporários de download HTTP
+OSDXMB/XMB/temp/
+**/XMB/temp/
+
+# Electron — build de instalação
+client/release/
+
+# Artefactos / SO
+Thumbs.db
+Desktop.ini
+*.stackdump
+
+# Opcional: ISOs na raiz do repo (ex.: PS2_ISO_DIR aponta para aqui)
+/isos/
+/PS2ISO/

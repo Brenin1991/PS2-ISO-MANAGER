@@ -1,0 +1,18 @@
+{
+  "SCUS_974.81_teste_iso.iso": {
+    "name": "God Of War 2",
+    "gameid": "SCUS_974.81"
+  },
+  "DVD/God of War II (USA).iso": {
+    "name": "God Of War II",
+    "gameid": "SCUS_974.81"
+  },
+  "SCUS_970.97_Net_Config.iso": {
+    "name": "Net Config",
+    "gameid": "SCUS_970.97"
+  },
+  "DVD/teste.ISO": {
+    "name": "dsfd",
+    "gameid": "SCUS_970.97"
+  }
+}
