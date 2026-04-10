@@ -1525,10 +1525,17 @@ function netUdpbdPrepareIso(baseUrl, isoFilename) {
  * Agenda GET /api/play/report?clear=1 fora do UIHandler (Tasks.Process), para não fazer
  * MainMutex.unlock durante o redraw — isso causava crashes intermitentes na consola.
  * Throttle ~4s evita rajadas ao mudar de submenu.
+ * Na primeira vez que o XMB principal fica activo (arranque), não pedir clear: o unlock+HTTP
+ * no boot gerava tela preta; voltando de submenu o painel PC ainda é actualizado.
  */
 var _xmbPcClearLastScheduleMs = 0;
+var _xmbPcClearSkipFirstMainUi = true;
 function xmbScheduleClearPlayingOnPcFromMainUi() {
     try {
+        if (_xmbPcClearSkipFirstMainUi) {
+            _xmbPcClearSkipFirstMainUi = false;
+            return;
+        }
         var now = Date.now();
         if (_xmbPcClearLastScheduleMs && (now - _xmbPcClearLastScheduleMs) < 4000) {
             return;
