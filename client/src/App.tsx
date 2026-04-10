@@ -12,6 +12,8 @@ import {
   gameDownloadUrl,
   gameTileImageUrl,
   getBackendUrl,
+  isLoopbackHost,
+  parseBackendHostPort,
   setBackendUrl,
   type GsmMode,
   type LibraryRow,
@@ -493,8 +495,13 @@ export default function App() {
   const [smbCfgMsg, setSmbCfgMsg] = useState("");
 
   const [usbOut, setUsbOut] = useState("");
-  const [usbPcIp, setUsbPcIp] = useState("192.168.0.140");
-  const [usbOplAutostart, setUsbOplAutostart] = useState(5);
+  const [usbPcIp, setUsbPcIp] = useState(() => {
+    const p = parseBackendHostPort(getBackendUrl());
+    if (p && !isLoopbackHost(p.host)) return p.host;
+    return "";
+  });
+  const [usbHttpPort, setUsbHttpPort] = useState(() => parseBackendHostPort(getBackendUrl())?.port ?? 5000);
+  const [usbOplAutostart, setUsbOplAutostart] = useState(3);
   const [usbOplNoRemember, setUsbOplNoRemember] = useState(false);
   const [usbSkipDash, setUsbSkipDash] = useState(false);
   const [usbLog, setUsbLog] = useState("");
@@ -537,6 +544,23 @@ export default function App() {
   useEffect(() => {
     if (tab === "library") void refreshLibrary();
   }, [tab, refreshLibrary]);
+
+  /** Ao abrir o separador Pendrive: IP/porta a partir do URL do backend; localhost → IPv4 da LAN (Electron). */
+  useEffect(() => {
+    if (tab !== "usb") return;
+    const p = parseBackendHostPort(base);
+    if (!p) return;
+    setUsbHttpPort(p.port);
+    if (isLoopbackHost(p.host)) {
+      if (window.osdxmb?.getLanIPv4) {
+        void window.osdxmb.getLanIPv4().then((ip) => {
+          if (ip) setUsbPcIp(ip);
+        });
+      }
+    } else {
+      setUsbPcIp(p.host);
+    }
+  }, [base, tab]);
 
   useEffect(() => {
     if (tab !== "library") return;
@@ -691,11 +715,28 @@ export default function App() {
     setUsbLog("A correr…\n");
     saveSmbConfig(smbCfg);
     let autostart = Math.floor(Number(usbOplAutostart));
-    if (!Number.isFinite(autostart)) autostart = 5;
+    if (!Number.isFinite(autostart)) autostart = 3;
     autostart = Math.max(0, Math.min(9, autostart));
+    const httpPort = Math.max(1, Math.min(65535, Math.floor(Number(usbHttpPort)) || 5000));
+    const parsed = parseBackendHostPort(base);
+    let pcIp = usbPcIp.trim();
+    if (!pcIp && parsed && !isLoopbackHost(parsed.host)) {
+      pcIp = parsed.host;
+    }
+    if (!pcIp && window.osdxmb?.getLanIPv4) {
+      pcIp = (await window.osdxmb.getLanIPv4()) || "";
+    }
+    if (!pcIp) {
+      setUsbRunning(false);
+      setUsbLog(
+        "IP do PC em falta. No Separador Servidor use um URL com o IP da rede (ex.: http://192.168.1.10:5000), ou aguarde a deteção automática no separador Pendrive.",
+      );
+      return;
+    }
     const r = await window.osdxmb?.runUsbPack({
       outDir: usbOut.trim(),
-      pcIp: usbPcIp.trim() || "192.168.0.140",
+      pcIp,
+      httpPort,
       skipOsdxmb: usbSkipDash,
       oplAutostartSeconds: autostart,
       oplNoRemember: usbOplNoRemember,
@@ -1259,7 +1300,7 @@ export default function App() {
             <h2>Pendrive PS2 (OPL flat + OSDXMB)</h2>
             <p className="sub">
               Gera na pasta escolhida: <code className="mono">ART CFG CHT… DVD CD conf_*.cfg</code> na raiz (inclui{" "}
-              <code className="mono">conf_opl.cfg</code> com ETH/USB em auto, menu SMB primeiro, remember/autostart conforme abaixo, e{" "}
+              <code className="mono">conf_opl.cfg</code> (template <code className="mono">opl_cfg/</code>), remember/autostart conforme abaixo, e{" "}
               <code className="mono">conf_network.cfg</code>) + cópia completa de <code className="mono">OSDXMB/</code>. Copie o conteúdo para a
               FAT32 do USB. Repo detectado: <code className="mono">{repoHint || "—"}</code>
             </p>
@@ -1272,8 +1313,22 @@ export default function App() {
                 </button>
               )}
             </div>
-            <label>IP do PC (SMB no conf_network.cfg)</label>
-            <input type="text" value={usbPcIp} onChange={(e) => setUsbPcIp(e.target.value)} />
+            <label>IP do PC (preenchido do URL do backend; editável se precisar)</label>
+            <input
+              type="text"
+              value={usbPcIp}
+              onChange={(e) => setUsbPcIp(e.target.value)}
+              placeholder="Ex.: 192.168.1.10 — vem do Separador Servidor"
+            />
+            <label>Porta HTTP (do URL do backend; editável)</label>
+            <input
+              type="number"
+              min={1}
+              max={65535}
+              value={usbHttpPort}
+              onChange={(e) => setUsbHttpPort(Number(e.target.value))}
+              style={{ maxWidth: "6rem" }}
+            />
             <label style={{ marginTop: "0.75rem" }}>Autostart OPL (segundos, 0–9 — contagem antes do último jogo)</label>
             <input
               type="number"

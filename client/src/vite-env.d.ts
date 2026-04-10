@@ -6,6 +6,8 @@ declare global {
   interface Window {
     osdxmb?: {
       getRepoRoot: () => Promise<string>;
+      /** IPv4 da LAN (Electron) — quando o URL do backend é localhost. */
+      getLanIPv4: () => Promise<string | null>;
       windowMinimize: () => Promise<void>;
       windowToggleMaximize: () => Promise<boolean>;
       windowClose: () => Promise<void>;

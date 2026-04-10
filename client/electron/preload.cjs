@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("osdxmb", {
   getRepoRoot: () => ipcRenderer.invoke("get-repo-root"),
+  getLanIPv4: () => ipcRenderer.invoke("get-lan-ipv4"),
 
   windowMinimize: () => ipcRenderer.invoke("window-minimize"),
   windowToggleMaximize: () => ipcRenderer.invoke("window-toggle-maximize"),

@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, dialog, Menu } = require("electron");
 const path = require("path");
 const fs = require("fs");
+const os = require("os");
 const crypto = require("crypto");
 const { spawn, execFile } = require("child_process");
 const { promisify } = require("util");
@@ -23,6 +24,31 @@ function defaultRepoRoot() {
     }
   } catch (_) {}
   return path.resolve(__dirname, "..", "..");
+}
+
+/** IPv4 não-interno para o pack USB quando o backend está em 127.0.0.1. */
+function pickLanIPv4() {
+  const nets = os.networkInterfaces();
+  const candidates = [];
+  for (const name of Object.keys(nets)) {
+    for (const net of nets[name] || []) {
+      const fam = net.family;
+      if ((fam !== "IPv4" && fam !== 4) || net.internal) continue;
+      candidates.push(net.address);
+    }
+  }
+  const score = (ip) => {
+    if (ip.startsWith("192.168.")) return 300;
+    if (ip.startsWith("10.")) return 200;
+    const m = /^172\.(\d+)\./.exec(ip);
+    if (m) {
+      const n = parseInt(m[1], 10);
+      if (n >= 16 && n <= 31) return 250;
+    }
+    return 100;
+  };
+  candidates.sort((a, b) => score(b) - score(a));
+  return candidates[0] || null;
 }
 
 let mainWindow = null;
@@ -394,6 +420,7 @@ app.on("window-all-closed", async () => {
 });
 
 ipcMain.handle("get-repo-root", () => defaultRepoRoot());
+ipcMain.handle("get-lan-ipv4", () => pickLanIPv4());
 
 ipcMain.handle("window-minimize", () => {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.minimize();
@@ -576,6 +603,9 @@ ipcMain.handle("run-usb-pack", async (_e, opts) => {
     "--pc-ip",
     opts.pcIp || "192.168.0.140",
   ];
+  if (opts.httpPort != null && opts.httpPort !== "" && Number(opts.httpPort) > 0) {
+    args.push("--http-port", String(opts.httpPort));
+  }
   if (opts.skipOsdxmb) args.push("--skip-osdxmb");
   if (opts.staticPs2) args.push("--static-ps2");
   if (opts.ps2Ip) {

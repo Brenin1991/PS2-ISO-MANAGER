@@ -477,30 +477,63 @@ function oplStartupStringFromListEntry(gameid, isoBaseName) {
     return s;
 }
 
-/** Defaults alinhados a server/opl_conf_opl.py — menu SMB primeiro, ETH/USB em Auto. */
+/** Defaults = ficheiro opl_cfg/conf_opl.cfg no repo (default_device=1, tema, cores…). */
 function oplDefaultOplCfgMap(autostartSeconds) {
-    const ast = Math.max(0, Math.min(9, Math.floor(Number(autostartSeconds) > 0 ? Number(autostartSeconds) : 5)));
+    let n = Number(autostartSeconds);
+    if (!isFinite(n) || n < 0) {
+        n = 3;
+    }
+    const ast = Math.max(0, Math.min(9, Math.floor(n)));
     return {
-        scrolling: "1",
-        autosort: "1",
-        autorefresh: "0",
         eth_mode: "2",
-        default_device: "5",
+        default_device: "1",
         usb_mode: "2",
         hdd_mode: "0",
         app_mode: "0",
         bdm_cache: "16",
         smb_cache: "16",
+        scrolling: "1",
+        autosort: "1",
+        autorefresh: "0",
         remember_last: "1",
         autostart_last: String(ast),
+        theme: "<OPL>",
+        language_text: "English (internal)",
+        bg_color: "#28C5F9",
+        text_color: "#FFFFFF",
+        ui_text_color: "#5868B4",
+        sel_text_color: "#00AEFF",
+        enable_notifications: "0",
+        enable_coverart: "0",
+        wide_screen: "0",
+        vmode: "0",
+        xoff: "0",
+        yoff: "0",
+        overscan: "0",
+        disable_debug: "0",
+        ps2logo: "0",
+        hdd_game_list_cache: "0",
+        exit_path: "",
+        enable_delete_rename: "0",
+        hdd_spindown: "20",
+        usb_prefix: "",
+        eth_prefix: "",
+        hdd_cache: "8",
+        enable_ilink: "0",
+        enable_mx4sio: "0",
+        enable_sfx: "0",
+        enable_boot_snd: "0",
+        enable_bgm: "0",
+        sfx_volume: "80",
+        boot_snd_volume: "80",
+        bgm_volume: "70",
+        default_bgm_path: "",
+        swap_select_btn: "1",
     };
 }
 
 function oplOplCfgKeyOrder() {
     return [
-        "scrolling",
-        "autosort",
-        "autorefresh",
         "eth_mode",
         "default_device",
         "usb_mode",
@@ -508,8 +541,43 @@ function oplOplCfgKeyOrder() {
         "app_mode",
         "bdm_cache",
         "smb_cache",
+        "scrolling",
+        "autosort",
+        "autorefresh",
         "remember_last",
         "autostart_last",
+        "theme",
+        "language_text",
+        "bg_color",
+        "text_color",
+        "ui_text_color",
+        "sel_text_color",
+        "enable_notifications",
+        "enable_coverart",
+        "wide_screen",
+        "vmode",
+        "xoff",
+        "yoff",
+        "overscan",
+        "disable_debug",
+        "ps2logo",
+        "hdd_game_list_cache",
+        "exit_path",
+        "enable_delete_rename",
+        "hdd_spindown",
+        "usb_prefix",
+        "eth_prefix",
+        "hdd_cache",
+        "enable_ilink",
+        "enable_mx4sio",
+        "enable_sfx",
+        "enable_boot_snd",
+        "enable_bgm",
+        "sfx_volume",
+        "boot_snd_volume",
+        "bgm_volume",
+        "default_bgm_path",
+        "swap_select_btn",
     ];
 }
 
@@ -542,7 +610,7 @@ function oplEnsureOplCfgAtPath(path, mergeKv) {
         if (std.exists(path)) {
             return oplMergeOplCfgKeys(path, mergeKv);
         }
-        const baseMap = oplDefaultOplCfgMap(Number(mergeKv.autostart_last) || 5);
+        const baseMap = oplDefaultOplCfgMap(Number(mergeKv.autostart_last) >= 0 ? mergeKv.autostart_last : 3);
         const m = {};
         let k;
         for (k in baseMap) {
@@ -577,7 +645,7 @@ function oplPcHostFromBaseUrl(baseUrl) {
 function oplNetisoOplSmbSettingsFromCfg() {
     let share = "PS2ISO";
     let user = "opl";
-    let passStr = "oplopl";
+    let passStr = "";
     let portStr = "4445";
     try {
         const c = CfgMan.Get("netiso.cfg");
@@ -702,7 +770,7 @@ function oplPrepareSmbLaunchFromXmb(opts) {
         }
 
         const isoFile = (opts && opts.isoFileName) ? String(opts.isoFileName).trim() : "";
-        let autostartSeconds = (opts && Number(opts.autostartSeconds) >= 0) ? Math.floor(Number(opts.autostartSeconds)) : 5;
+        let autostartSeconds = (opts && Number(opts.autostartSeconds) >= 0) ? Math.floor(Number(opts.autostartSeconds)) : 3;
         try {
             const nc = CfgMan.Get("netiso.cfg");
             const a = (nc && (nc.opl_autostart_seconds != null || nc.OPL_AUTOSTART_SECONDS != null))
@@ -741,13 +809,6 @@ function oplPrepareSmbLaunchFromXmb(opts) {
         }
 
         const mergeKv = {
-            eth_mode: "2",
-            default_device: "5",
-            usb_mode: "2",
-            hdd_mode: "0",
-            app_mode: "0",
-            bdm_cache: "16",
-            smb_cache: "16",
             remember_last: "1",
             autostart_last: String(autostartSeconds),
         };
@@ -763,7 +824,7 @@ function oplPrepareSmbLaunchFromXmb(opts) {
                     xlog(
                         "OPL XMB: " +
                             oplMain[j] +
-                            " -> ETH+USB auto, menu SMB, remember_last=1 autostart_last=" +
+                            " -> merge remember_last=1 autostart_last=" +
                             autostartSeconds,
                     );
                 }
@@ -1518,10 +1579,6 @@ function netUdpbdPrepareIso(baseUrl, isoFilename) {
 }
 
 /**
- * Avisa o servidor Flask (PC) qual ISO foi lançado — usado pelo painel /api/play/status.
- * Usa GET + Request().download (compatível com o motor XMB); o body é JSON pequeno.
- */
-/**
  * Agenda GET /api/play/report?clear=1 fora do UIHandler (Tasks.Process), para não fazer
  * MainMutex.unlock durante o redraw — isso causava crashes intermitentes na consola.
  * Throttle ~4s evita rajadas ao mudar de submenu.
@@ -1611,62 +1668,12 @@ function xmbReportClearPlayingOnPc() {
     }
 }
 
+/**
+ * Avisar o PC qual ISO está a ser lançado (/api/play/report) — desligado: o GET síncrono com
+ * MainMutex.unlock() antes do Request().download travava ao confirmar jogo (OPL SMB / UDPBD).
+ * O painel "a jogar" no cliente deixa de ser actualizado pelo XMB; leitura SMB do ISO continua possível.
+ */
 function xmbReportPlayingToPc(baseUrl, isoRelPath, displayName, gameId) {
-    try {
-        const base = String(baseUrl || "").replace(/\/$/, "");
-        if (!base) {
-            return;
-        }
-        const iso = String(isoRelPath || "").replace(/\\/g, "/").trim();
-        if (!iso || !/\.iso$/i.test(iso)) {
-            return;
-        }
-        let keyQs = "";
-        try {
-            const c = CfgMan.Get("netiso.cfg");
-            const k = c && (c.report_key != null || c.REPORT_KEY != null) ? String(c.report_key != null ? c.report_key : c.REPORT_KEY).trim() : "";
-            if (k) {
-                keyQs = "&key=" + encodeURIComponent(k);
-            }
-        } catch (eK) {
-            xlog(eK);
-        }
-        const url =
-            base +
-            "/api/play/report?iso=" +
-            encodeURIComponent(iso) +
-            "&name=" +
-            encodeURIComponent(displayName != null ? String(displayName) : "") +
-            "&gameid=" +
-            encodeURIComponent(gameId != null ? String(gameId) : "") +
-            keyQs;
-        const tmp = PATHS.XMB + "temp/play_report.json";
-        if (!std.exists(PATHS.XMB + "temp")) {
-            try {
-                os.mkdir(PATHS.XMB + "temp");
-            } catch (eMk) {
-                xlog(eMk);
-            }
-        }
-        MainMutex.unlock();
-        try {
-            const req = new Request();
-            req.download(url, tmp);
-        } catch (e1) {
-            xlog(e1);
-        } finally {
-            MainMutex.lock();
-        }
-        try {
-            if (std.exists(tmp)) {
-                os.remove(tmp);
-            }
-        } catch (e2) {
-            xlog(e2);
-        }
-    } catch (eTop) {
-        xlog(eTop);
-    }
 }
 
 function neutrinoSaveLastPlayedEntry() {

@@ -173,6 +173,7 @@ def ensure_db(db_path: str, json_legacy_path: str | None) -> None:
 def load_all_as_dict(db_path: str) -> dict[str, dict[str, Any]]:
     conn = connect(db_path)
     try:
+        migrate_library_extra_columns(conn)
         rows = conn.execute(
             """
             SELECT iso_relpath, name, gameid, description,
@@ -182,6 +183,10 @@ def load_all_as_dict(db_path: str) -> dict[str, dict[str, Any]]:
         ).fetchall()
         out: dict[str, dict[str, Any]] = {}
         for r in rows:
+            try:
+                og = int(r["opl_gsm_vmode"] if r["opl_gsm_vmode"] is not None else -1)
+            except (TypeError, ValueError):
+                og = -1
             out[str(r["iso_relpath"])] = {
                 "name": r["name"] or "",
                 "gameid": r["gameid"] or "",
@@ -190,7 +195,7 @@ def load_all_as_dict(db_path: str) -> dict[str, dict[str, Any]]:
                 "developers": r["developers"] or "",
                 "publisher": r["publisher"] or "",
                 "max_players": r["max_players"] or "",
-                "opl_gsm_vmode": int(r["opl_gsm_vmode"] if r["opl_gsm_vmode"] is not None else -1),
+                "opl_gsm_vmode": og,
             }
         return out
     finally:
@@ -204,6 +209,7 @@ def get_entry(db_path: str, iso_relpath: str) -> dict[str, Any] | None:
         return None
     conn = connect(db_path)
     try:
+        migrate_library_extra_columns(conn)
         row = conn.execute(
             """
             SELECT iso_relpath, name, gameid, description,
@@ -214,6 +220,10 @@ def get_entry(db_path: str, iso_relpath: str) -> dict[str, Any] | None:
         ).fetchone()
         if not row:
             return None
+        try:
+            og = int(row["opl_gsm_vmode"] if row["opl_gsm_vmode"] is not None else -1)
+        except (TypeError, ValueError):
+            og = -1
         return {
             "iso_relpath": str(row["iso_relpath"]),
             "name": row["name"] or "",
@@ -223,7 +233,7 @@ def get_entry(db_path: str, iso_relpath: str) -> dict[str, Any] | None:
             "developers": row["developers"] or "",
             "publisher": row["publisher"] or "",
             "max_players": row["max_players"] or "",
-            "opl_gsm_vmode": int(row["opl_gsm_vmode"] if row["opl_gsm_vmode"] is not None else -1),
+            "opl_gsm_vmode": og,
         }
     finally:
         conn.close()
@@ -245,6 +255,7 @@ def upsert_entry(
     rp = iso_relpath.replace("\\", "/").strip()
     conn = connect(db_path)
     try:
+        migrate_library_extra_columns(conn)
         conn.execute(
             """
             INSERT INTO library_entry(

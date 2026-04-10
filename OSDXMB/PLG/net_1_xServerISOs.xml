@@ -7,6 +7,14 @@
   <Init>
     <![CDATA[
       function(SubMenu) {
+        function parseNetisoListJson(raw) {
+          if (!raw || typeof raw !== "string" || raw.length < 2) { return false; }
+          var s = raw.replace(/^\uFEFF/, "").trim();
+          var i0 = s.indexOf("[");
+          var i1 = s.lastIndexOf("]");
+          if (i0 >= 0 && i1 > i0) { s = s.substring(i0, i1 + 1); }
+          try { return JSON.parse(s); } catch (e) { xlog(e); return false; }
+        }
         function baseUrl() {
           const c = CfgMan.Get("netiso.cfg");
           let u = c.url || c.URL;
@@ -56,11 +64,13 @@
           req.download(listUrl, listTmp);
           MainMutex.lock();
           if (std.exists(listTmp)) {
-            listData = JSON.parse(std.loadFile(listTmp));
-            os.remove(listTmp);
+            var rawL = "";
+            try { rawL = std.loadFile(listTmp); } catch (eLf) { xlog(eLf); }
+            try { os.remove(listTmp); } catch (eRm) { xlog(eRm); }
+            listData = parseNetisoListJson(rawL);
           }
         } catch (e) {
-          MainMutex.lock();
+          try { MainMutex.lock(); } catch (eLk) { xlog(eLk); }
           xlog(e);
         }
 

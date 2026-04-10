@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import math
 import os
 import re
 import shutil
@@ -278,7 +280,12 @@ def _library_row(f: str, lib: dict, play_totals: dict[str, float] | None = None)
     fnorm = f.replace("\\", "/")
     play_sec = 0.0
     if play_totals:
-        play_sec = float(play_totals.get(fnorm, 0) or 0)
+        try:
+            play_sec = float(play_totals.get(fnorm, 0) or 0)
+        except (TypeError, ValueError):
+            play_sec = 0.0
+    if not math.isfinite(play_sec):
+        play_sec = 0.0
     return {
         "name": name,
         "file": fnorm,
@@ -375,11 +382,13 @@ def root_redirect():
 
 @app.route("/list")
 def list_isos():
+    """JSON compacto e strict (sem NaN) — parsers antigos na PS2 falham com NaN ou lixo no corpo."""
     lib = load_library()
     totals = iso_library_db.play_time_totals_map(LIBRARY_DB_PATH)
     files = sorted(_iter_iso_relpaths())
     out = [_library_row(f, lib, totals) for f in files]
-    return jsonify(out)
+    body = json.dumps(out, ensure_ascii=True, separators=(",", ":"), allow_nan=False)
+    return Response(body, mimetype="application/json; charset=utf-8")
 
 
 def _process_iso_admin_save(req) -> tuple[str | None, str | None, str | None]:

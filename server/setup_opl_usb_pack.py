@@ -25,6 +25,7 @@ import opl_conf_network
 import opl_conf_opl
 
 _REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+_OPL_CFG_SRC = os.path.join(_REPO_ROOT, "opl_cfg")
 # Fonte única do dash XMB (PLG, js, CFG…): pasta OSDXMB/ na raiz do repo — NÃO editar cópias em server/opl_usb_pack/.
 _OSDXMB_SRC = os.path.join(_REPO_ROOT, "OSDXMB")
 _ELF_SRC = os.path.join(_OSDXMB_SRC, "APPS", "OPL", "OPNPS2LD.ELF")
@@ -42,6 +43,48 @@ def _ignore_osdxmb_junk(_dir: str, names: list[str]) -> list[str]:
     return [n for n in names if n in skip or n.endswith(".pyc")]
 
 
+def _apply_server_url_to_osdxmb_cfg(usb_root: str, host: str, http_port: int) -> None:
+    """Define url=http://<pc-ip>:<porta> em OSDXMB/CFG/netiso.cfg e ps2online.cfg (primeira linha url=)."""
+    host = (host or "").strip()
+    if not host:
+        return
+    try:
+        port = int(http_port)
+    except (TypeError, ValueError):
+        port = 5000
+    if port < 1 or port > 65535:
+        port = 5000
+    base = f"http://{host}:{port}"
+    cfg_dir = os.path.join(usb_root, "OSDXMB", "CFG")
+    for name in ("netiso.cfg", "ps2online.cfg"):
+        fp = os.path.join(cfg_dir, name)
+        if not os.path.isfile(fp):
+            continue
+        try:
+            with open(fp, "r", encoding="utf-8", errors="replace") as f:
+                lines = f.readlines()
+        except OSError as e:
+            print(f"Aviso: ler {fp}: {e}", file=sys.stderr)
+            continue
+        out: list[str] = []
+        url_done = False
+        for line in lines:
+            stripped = line.lstrip()
+            if not url_done and stripped.startswith("url="):
+                out.append(f"url={base}\n")
+                url_done = True
+            else:
+                out.append(line)
+        if not url_done:
+            out.insert(0, f"url={base}\n")
+        try:
+            with open(fp, "w", encoding="utf-8", newline="\n") as f:
+                f.writelines(out)
+            print(f"Atualizado: {fp} -> url={base}")
+        except OSError as e:
+            print(f"Aviso: gravar {fp}: {e}", file=sys.stderr)
+
+
 def _write_opl_cfgs_at_usb_root(
     root: str,
     *,
@@ -51,10 +94,10 @@ def _write_opl_cfgs_at_usb_root(
     ps2_mask: str,
     ps2_gw: str,
     ps2_dns: str | None,
-    opl_autostart_seconds: int = 5,
+    opl_autostart_seconds: int = 3,
     opl_remember_last: bool = True,
 ) -> None:
-    """conf_opl.cfg + conf_network.cfg na raiz do volume (layout flat)."""
+    """conf_*.cfg na raiz (templates em opl_cfg/)."""
     try:
         net = opl_conf_network.build_conf_network_crlf(
             pc_ip,
@@ -76,6 +119,13 @@ def _write_opl_cfgs_at_usb_root(
         f.write(opl)
     with open(os.path.join(root, "conf_network.cfg"), "wb") as f:
         f.write(net)
+    for extra in ("conf_game.cfg", "conf_last.cfg"):
+        src = os.path.join(_OPL_CFG_SRC, extra)
+        if os.path.isfile(src):
+            shutil.copy2(src, os.path.join(root, extra))
+            print(f"Copiado: {os.path.join(root, extra)}")
+        else:
+            print(f"Aviso: template em falta {src}", file=sys.stderr)
     print(f"Gerados: {os.path.join(root, 'conf_opl.cfg')}")
     print(f"Gerados: {os.path.join(root, 'conf_network.cfg')}")
 
@@ -86,12 +136,13 @@ def build_ps2_usb_root(
     copy_osdxmb: bool,
     copy_elf_if_missing: bool,
     pc_ip: str,
+    http_port: int = 5000,
     dhcp: bool,
     ps2_ip: str,
     ps2_mask: str,
     ps2_gw: str,
     ps2_dns: str | None,
-    opl_autostart_seconds: int = 5,
+    opl_autostart_seconds: int = 3,
     opl_remember_last: bool = True,
 ) -> None:
     root = os.path.abspath(out_root)
@@ -128,18 +179,20 @@ def build_ps2_usb_root(
             shutil.copy2(_ELF_SRC, dst_elf)
             print(f"Copiado: {dst_elf}")
 
+    _apply_server_url_to_osdxmb_cfg(root, pc_ip, http_port)
+
     marker = os.path.join(root, "LEIA-ME_USB.txt")
     with open(marker, "w", encoding="utf-8") as f:
         f.write(
             "Raiz do USB (FAT32):\n"
-            "  conf_opl.cfg — ETH+USB em modo Auto, menu inicial = Jogos em rede (SMB),\n"
-            "    remember_last + autostart_last (último jogo com contagem regressiva).\n"
-            "  conf_network.cfg — smb_ip, partilha OPL_SMB_*, PS2 em DHCP por defeito.\n"
+            "  conf_opl.cfg / conf_network.cfg / conf_game.cfg / conf_last.cfg — cópia dos templates\n"
+            "    em opl_cfg/ na raiz do repo (ajuste smb_ip, autostart_last, etc.).\n"
             "  ART CFG CHT LNG THM VMC  — OPL na raiz\n"
             "  DVD CD                  — ISOs\n"
-            "  OSDXMB                  — dashboard XMB\n\n"
+            "  OSDXMB                  — dashboard XMB\n"
+            "    OSDXMB/CFG/netiso.cfg e ps2online.cfg — url=http://<PC>:<porta> (Flask) gerados com --pc-ip e --http-port.\n\n"
             "Ajuste o IP do PC em conf_network (smb_ip) se mudar a rede.\n"
-            "Partilha/porta/user: alinhados a OPL_SMB_* ao correr o script.\n"
+            "Partilha/porta/user/pass: OPL_SMB_* ao correr o script (pass vazio = anónimo se o servidor permitir).\n"
         )
 
 
@@ -148,12 +201,13 @@ def build_opl_only_flat(
     *,
     copy_elf: bool,
     pc_ip: str,
+    http_port: int = 5000,
     dhcp: bool,
     ps2_ip: str,
     ps2_mask: str,
     ps2_gw: str,
     ps2_dns: str | None,
-    opl_autostart_seconds: int = 5,
+    opl_autostart_seconds: int = 3,
     opl_remember_last: bool = True,
 ) -> None:
     """Só raiz “OPL flat” + DVD/CD + APPS/OPL (sem OSDXMB)."""
@@ -180,6 +234,8 @@ def build_opl_only_flat(
         print(f"Copiado: {apps_opl}\\OPNPS2LD.ELF")
     elif copy_elf:
         print(f"Aviso: ELF não encontrado: {_ELF_SRC}", file=sys.stderr)
+
+    _apply_server_url_to_osdxmb_cfg(root, pc_ip, http_port)
 
 
 def main() -> None:
@@ -210,7 +266,13 @@ def main() -> None:
     ap.add_argument(
         "--pc-ip",
         default=os.environ.get("OPL_CONF_PC_IP") or "192.168.0.140",
-        help="IPv4 do PC (servidor SMB) em conf_network.cfg (ou env OPL_CONF_PC_IP)",
+        help="IPv4 do PC: conf_network (smb_ip), OSDXMB/CFG netiso.cfg e ps2online.cfg url= (ou env OPL_CONF_PC_IP)",
+    )
+    ap.add_argument(
+        "--http-port",
+        type=int,
+        default=5000,
+        help="Porta HTTP do Flask em url= de netiso.cfg / ps2online.cfg (default 5000)",
     )
     ap.add_argument(
         "--static-ps2",
@@ -224,8 +286,8 @@ def main() -> None:
     ap.add_argument(
         "--opl-autostart-seconds",
         type=int,
-        default=5,
-        help="autostart_last no conf_opl (0–9 segundos; 0 = desliga contagem). Default: 5",
+        default=3,
+        help="autostart_last no conf_opl (0–9; alinhado a opl_cfg/conf_opl.cfg). Default: 3",
     )
     ap.add_argument(
         "--opl-no-remember",
@@ -243,6 +305,7 @@ def main() -> None:
             args.out,
             copy_elf=args.copy_elf,
             pc_ip=args.pc_ip,
+            http_port=args.http_port,
             dhcp=dhcp,
             ps2_ip=args.ps2_ip,
             ps2_mask=args.ps2_mask,
@@ -257,6 +320,7 @@ def main() -> None:
             copy_osdxmb=not args.skip_osdxmb,
             copy_elf_if_missing=args.skip_osdxmb and args.copy_elf,
             pc_ip=args.pc_ip,
+            http_port=args.http_port,
             dhcp=dhcp,
             ps2_ip=args.ps2_ip,
             ps2_mask=args.ps2_mask,

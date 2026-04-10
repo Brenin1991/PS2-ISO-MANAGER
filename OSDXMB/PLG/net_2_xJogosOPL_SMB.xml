@@ -16,6 +16,14 @@
             Value: { Default: 0, Items: [] }
           }];
         }
+        function parseNetisoListJson(raw) {
+          if (!raw || typeof raw !== "string" || raw.length < 2) { return false; }
+          var s = raw.replace(/^\uFEFF/, "").trim();
+          var i0 = s.indexOf("[");
+          var i1 = s.lastIndexOf("]");
+          if (i0 >= 0 && i1 > i0) { s = s.substring(i0, i1 + 1); }
+          try { return JSON.parse(s); } catch (e) { xlog(e); return false; }
+        }
         try {
         function baseUrl() {
           try {
@@ -100,12 +108,7 @@
               xlog(eRm);
             }
             if (rawList && rawList.length > 0) {
-              try {
-                listData = JSON.parse(rawList);
-              } catch (eParse) {
-                xlog(eParse);
-                listData = false;
-              }
+              listData = parseNetisoListJson(rawList);
             }
           }
         } catch (e) {
@@ -172,7 +175,7 @@
                         isoFileName: isoFname.split("/").pop(),
                         isoRelPath: String(isoFname).replace(/\\/g, "/"),
                         displayName: dispName,
-                        autostartSeconds: 5
+                        autostartSeconds: 3
                       });
                     } else {
                       xlog("OPL XMB: falta oplPrepareSmbLaunchFromXmb() em system.js");

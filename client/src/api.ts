@@ -8,6 +8,35 @@ export function setBackendUrl(url: string) {
   localStorage.setItem(LS_KEY, url.replace(/\/$/, ""));
 }
 
+export function isLoopbackHost(host: string): boolean {
+  const h = host.trim().toLowerCase();
+  return h === "localhost" || h === "127.0.0.1" || h === "::1" || h === "0:0:0:0:0:0:0:1";
+}
+
+/** Host e porta do URL do backend. Sem porta em `http://` → 5000 (Flask típico). */
+export function parseBackendHostPort(urlRaw: string): { host: string; port: number } | null {
+  let s = urlRaw.trim();
+  if (!s) return null;
+  if (!/^https?:\/\//i.test(s)) s = `http://${s}`;
+  try {
+    const u = new URL(s);
+    const host = u.hostname;
+    if (!host) return null;
+    let port: number;
+    if (u.port) {
+      port = parseInt(u.port, 10);
+    } else if (u.protocol === "https:") {
+      port = 443;
+    } else {
+      port = 5000;
+    }
+    if (!Number.isFinite(port) || port < 1 || port > 65535) port = 5000;
+    return { host, port };
+  } catch {
+    return null;
+  }
+}
+
 export type GsmMode = { id: number; label: string };
 
 export type LibraryRow = {
