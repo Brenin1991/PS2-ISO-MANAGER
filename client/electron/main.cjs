@@ -325,8 +325,9 @@ async function ensureVenvOnly(repoRoot, sessionId) {
 }
 
 /**
- * Mata o processo Python e filhos (Waitress + thread SMB no mesmo PID; no Windows
- * com shell:true antigo ficavam órfãos — aqui usamos shell:false + taskkill /T).
+ * Mata o processo Python e filhos. Windows: taskkill /T. Linux/macOS: o spawn do
+ * backend usa detached:true para o Python ser líder de novo grupo/sessão; assim
+ * process.kill(-pid) mata o grupo inteiro (filhos do Waitress, workers, etc.).
  */
 async function killPythonProcessTree(child) {
   if (!child || !child.pid) return;
@@ -342,13 +343,27 @@ async function killPythonProcessTree(child) {
         windowsHide: true,
       });
     } else {
-      try {
-        child.kill("SIGTERM");
-      } catch (_) {}
-      await new Promise((r) => setTimeout(r, 400));
+      const killPg = (sig) => {
+        try {
+          process.kill(-pid, sig);
+          return true;
+        } catch (_) {
+          return false;
+        }
+      };
+      if (!killPg("SIGTERM")) {
+        try {
+          child.kill("SIGTERM");
+        } catch (_) {}
+      }
+      await new Promise((r) => setTimeout(r, 500));
       try {
         if (child.exitCode === null && child.signalCode === null) {
-          child.kill("SIGKILL");
+          if (!killPg("SIGKILL")) {
+            try {
+              child.kill("SIGKILL");
+            } catch (_) {}
+          }
         }
       } catch (_) {}
     }
@@ -521,6 +536,8 @@ ipcMain.handle("start-python-backend", async (_e, { mode, env: inject }) => {
       env: envForPythonSubprocess(inject),
       shell: false,
       windowsHide: true,
+      // Unix: novo grupo/sessão → kill(-pid) no stop mata árvore inteira.
+      ...(process.platform !== "win32" ? { detached: true } : {}),
     });
 
     pythonChild = child;
