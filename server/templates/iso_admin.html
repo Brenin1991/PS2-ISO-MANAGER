@@ -51,6 +51,26 @@
       </select>
       <label for="description">Descrição (opcional, interface cliente)</label>
       <textarea id="description" name="description" rows="3" placeholder="Resumo ou notas"></textarea>
+      <div class="row">
+        <div>
+          <label for="release_date">Data de lançamento</label>
+          <input type="text" id="release_date" name="release_date" placeholder="ex. 2005 ou 2005-03-15">
+        </div>
+        <div>
+          <label for="max_players">Máx. jogadores</label>
+          <input type="text" id="max_players" name="max_players" placeholder="ex. 1, 2, 1–4">
+        </div>
+      </div>
+      <label for="developers">Developers / estúdios</label>
+      <input type="text" id="developers" name="developers" placeholder="Opcional">
+      <label for="publisher">Editora (publisher)</label>
+      <input type="text" id="publisher" name="publisher" placeholder="Opcional">
+      <label for="opl_gsm_vmode">GSM OPL (CFG/&lt;gameid&gt;.cfg na pasta de ISOs)</label>
+      <select id="opl_gsm_vmode" name="opl_gsm_vmode">
+        {% for m in gsm_modes %}
+        <option value="{{ m.id }}">{{ m.label }}</option>
+        {% endfor %}
+      </select>
       <label for="cover">Capa biblioteca (opcional, PNG/JPG — só para a UI)</label>
       <input type="file" id="cover" name="cover" accept="image/png,image/jpeg,.png,.jpg">
       <label for="icon0">icon0.png (ícone)</label>
@@ -66,19 +86,22 @@
   <div class="card">
     <h2 style="font-size:1rem; margin:0 0 0.75rem;">ISOs registados</h2>
     <table>
-      <thead><tr><th>Ficheiro</th><th>Nome</th><th>Game ID</th><th>Descrição</th><th>Arte</th><th>Capa UI</th></tr></thead>
+      <thead><tr><th>Ficheiro</th><th>Nome</th><th>Game ID</th><th>GSM</th><th>Lançamento</th><th>Editora</th><th>Descrição</th><th>Arte</th><th>Capa UI</th></tr></thead>
       <tbody>
         {% for row in rows %}
         <tr>
           <td>{{ row.file }}</td>
           <td>{{ row.name }}</td>
           <td><code>{{ row.gameid or "—" }}</code></td>
-          <td style="max-width:14rem;font-size:0.82rem;color:var(--muted)">{{ (row.description or "")[:120] }}{% if row.description and row.description|length > 120 %}…{% endif %}</td>
+          <td style="font-size:0.82rem;color:var(--muted)" title="opl_gsm_vmode">{% if row.opl_gsm_vmode is defined and row.opl_gsm_vmode >= 0 %}{{ row.opl_gsm_vmode }}{% else %}off{% endif %}</td>
+          <td style="font-size:0.82rem;color:var(--muted)">{{ row.release_date or "—" }}</td>
+          <td style="max-width:8rem;font-size:0.82rem;color:var(--muted)">{{ (row.publisher or "—")[:48] }}{% if row.publisher and row.publisher|length > 48 %}…{% endif %}</td>
+          <td style="max-width:12rem;font-size:0.82rem;color:var(--muted)">{{ (row.description or "")[:100] }}{% if row.description and row.description|length > 100 %}…{% endif %}</td>
           <td class="{{ 'ok' if row.has_art else 'no' }}">{{ "sim" if row.has_art else "não" }}</td>
           <td class="{{ 'ok' if row.has_cover else 'no' }}">{{ "sim" if row.has_cover else "não" }}</td>
         </tr>
         {% else %}
-        <tr><td colspan="6">Nenhuma ISO na pasta <code>isos/</code></td></tr>
+        <tr><td colspan="9">Nenhuma ISO na pasta <code>isos/</code></td></tr>
         {% endfor %}
       </tbody>
     </table>

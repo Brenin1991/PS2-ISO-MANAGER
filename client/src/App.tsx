@@ -3,6 +3,7 @@ import {
   apiHealth,
   apiInspectIso,
   apiLibrary,
+  apiLibraryGsmModes,
   apiPlayStatus,
   apiSaveLibrary,
   apiSmb,
@@ -12,6 +13,7 @@ import {
   gameTileImageUrl,
   getBackendUrl,
   setBackendUrl,
+  type GsmMode,
   type LibraryRow,
   type PlayStatus,
 } from "./api";
@@ -82,20 +84,65 @@ function ElectronTitleBar({
   );
 }
 
+function OplGsmSelect({
+  id,
+  label,
+  value,
+  onChange,
+  modes,
+  hint,
+}: {
+  id: string;
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+  modes: GsmMode[];
+  hint?: string;
+}) {
+  const list = modes.length > 0 ? modes : [{ id: -1, label: "GSM desligado (predefinição OPL)" }];
+  const selectValue = list.some((m) => m.id === value) ? value : list[0]!.id;
+  return (
+    <>
+      <label htmlFor={id}>{label}</label>
+      {hint ? (
+        <p className="sub" style={{ marginTop: "0.15rem", marginBottom: "0.35rem" }}>
+          {hint}
+        </p>
+      ) : null}
+      <select id={id} value={selectValue} onChange={(e) => onChange(Number(e.target.value))}>
+        {list.map((m) => (
+          <option key={m.id} value={m.id}>
+            {m.label}
+          </option>
+        ))}
+      </select>
+    </>
+  );
+}
+
 function LibraryGameDetailView({
   base,
   row,
+  gsmModes,
   onBack,
   onLibraryUpdated,
 }: {
   base: string;
   row: LibraryRow;
+  gsmModes: GsmMode[];
   onBack: () => void;
   onLibraryUpdated?: () => void | Promise<void>;
 }) {
   const [editGameid, setEditGameid] = useState(row.gameid);
   const [editName, setEditName] = useState(row.name);
   const [editDesc, setEditDesc] = useState(row.description || "");
+  const [editReleaseDate, setEditReleaseDate] = useState(row.release_date || "");
+  const [editDevelopers, setEditDevelopers] = useState(row.developers || "");
+  const [editPublisher, setEditPublisher] = useState(row.publisher || "");
+  const [editMaxPlayers, setEditMaxPlayers] = useState(row.max_players || "");
+  const [editOplGsm, setEditOplGsm] = useState(() =>
+    typeof row.opl_gsm_vmode === "number" ? row.opl_gsm_vmode : -1,
+  );
   const [editSaving, setEditSaving] = useState(false);
   const [editMsg, setEditMsg] = useState("");
   const [imgBust, setImgBust] = useState(0);
@@ -104,8 +151,13 @@ function LibraryGameDetailView({
     setEditGameid(row.gameid);
     setEditName(row.name);
     setEditDesc(row.description || "");
+    setEditReleaseDate(row.release_date || "");
+    setEditDevelopers(row.developers || "");
+    setEditPublisher(row.publisher || "");
+    setEditMaxPlayers(row.max_players || "");
+    setEditOplGsm(typeof row.opl_gsm_vmode === "number" ? row.opl_gsm_vmode : -1);
     setEditMsg("");
-  }, [row.file, row.gameid, row.name, row.description]);
+  }, [row.file, row.gameid, row.name, row.description, row.release_date, row.developers, row.publisher, row.max_players, row.opl_gsm_vmode]);
 
   let hero = gameTileImageUrl(base, row);
   if (hero && imgBust > 0) {
@@ -127,6 +179,11 @@ function LibraryGameDetailView({
     fd.set("gameid", editGameid.trim());
     fd.set("display_name", editName.trim());
     fd.set("description", editDesc);
+    fd.set("release_date", editReleaseDate.trim());
+    fd.set("developers", editDevelopers.trim());
+    fd.set("publisher", editPublisher.trim());
+    fd.set("max_players", editMaxPlayers.trim());
+    fd.set("opl_gsm_vmode", String(editOplGsm));
     const cov = (document.getElementById("detail-cover") as HTMLInputElement)?.files?.[0];
     const i0 = (document.getElementById("detail-icon0") as HTMLInputElement)?.files?.[0];
     const p1 = (document.getElementById("detail-pic1") as HTMLInputElement)?.files?.[0];
@@ -195,6 +252,40 @@ function LibraryGameDetailView({
             </span>
           </div>
           <p className="library-detail-path mono">{row.file}</p>
+          {(row.release_date?.trim() ||
+            row.developers?.trim() ||
+            row.publisher?.trim() ||
+            row.max_players?.trim()) ? (
+            <section className="library-detail-block">
+              <h2 className="library-detail-h2">Ficha</h2>
+              <dl className="library-detail-meta">
+                {row.release_date?.trim() ? (
+                  <>
+                    <dt>Data de lançamento</dt>
+                    <dd>{row.release_date.trim()}</dd>
+                  </>
+                ) : null}
+                {row.developers?.trim() ? (
+                  <>
+                    <dt>Estúdios / developers</dt>
+                    <dd>{row.developers.trim()}</dd>
+                  </>
+                ) : null}
+                {row.publisher?.trim() ? (
+                  <>
+                    <dt>Editora</dt>
+                    <dd>{row.publisher.trim()}</dd>
+                  </>
+                ) : null}
+                {row.max_players?.trim() ? (
+                  <>
+                    <dt>Jogadores (máx.)</dt>
+                    <dd>{row.max_players.trim()}</dd>
+                  </>
+                ) : null}
+              </dl>
+            </section>
+          ) : null}
           <section className="library-detail-block">
             <h2 className="library-detail-h2">Tempo jogado</h2>
             <p className="library-detail-desc">
@@ -291,6 +382,60 @@ function LibraryGameDetailView({
           </div>
           <label htmlFor="detail-desc">Descrição</label>
           <textarea id="detail-desc" rows={4} value={editDesc} onChange={(e) => setEditDesc(e.target.value)} placeholder="Opcional" />
+          <div className="row2">
+            <div>
+              <label htmlFor="detail-release">Data de lançamento</label>
+              <input
+                id="detail-release"
+                type="text"
+                value={editReleaseDate}
+                onChange={(e) => setEditReleaseDate(e.target.value)}
+                placeholder="ex. 2005 ou 2005-03-15"
+                autoComplete="off"
+              />
+            </div>
+            <div>
+              <label htmlFor="detail-maxpl">Máx. jogadores</label>
+              <input
+                id="detail-maxpl"
+                type="text"
+                value={editMaxPlayers}
+                onChange={(e) => setEditMaxPlayers(e.target.value)}
+                placeholder="ex. 1, 2, 1–4"
+                autoComplete="off"
+              />
+            </div>
+          </div>
+          <label htmlFor="detail-dev">Developers / estúdios</label>
+          <input
+            id="detail-dev"
+            type="text"
+            value={editDevelopers}
+            onChange={(e) => setEditDevelopers(e.target.value)}
+            placeholder="Opcional"
+            autoComplete="off"
+          />
+          <label htmlFor="detail-pub">Editora (publisher)</label>
+          <input
+            id="detail-pub"
+            type="text"
+            value={editPublisher}
+            onChange={(e) => setEditPublisher(e.target.value)}
+            placeholder="Opcional"
+            autoComplete="off"
+          />
+          <OplGsmSelect
+            id="detail-gsm"
+            label="GSM / modo de vídeo (OPL)"
+            value={editOplGsm}
+            onChange={setEditOplGsm}
+            modes={gsmModes}
+            hint={
+              row.gameid
+                ? `Gravado em CFG/${row.gameid}.cfg na pasta de ISOs (partilha SMB). O OPL lê este ficheiro ao lançar o jogo.`
+                : "Gravado em CFG/ na pasta de ISOs após definir o Game ID."
+            }
+          />
           <label htmlFor="detail-cover">Capa da biblioteca (PNG/JPG) — opcional</label>
           <input id="detail-cover" type="file" accept="image/png,image/jpeg" />
           <label htmlFor="detail-icon0">icon0 OPL (PNG/JPG) — opcional</label>
@@ -323,8 +468,14 @@ export default function App() {
   const [gameid, setGameid] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [description, setDescription] = useState("");
+  const [releaseDate, setReleaseDate] = useState("");
+  const [developers, setDevelopers] = useState("");
+  const [publisher, setPublisher] = useState("");
+  const [maxPlayers, setMaxPlayers] = useState("");
+  const [cadastroOplGsm, setCadastroOplGsm] = useState(-1);
   const [existingIso, setExistingIso] = useState("");
   const [isoFile, setIsoFile] = useState<File | null>(null);
+  const [gsmModes, setGsmModes] = useState<GsmMode[]>([]);
 
   const [libraryDetailFile, setLibraryDetailFile] = useState<string | null>(null);
   const [libraryViewMode, setLibraryViewMode] = useState<LibraryViewMode>(() => {
@@ -343,6 +494,8 @@ export default function App() {
 
   const [usbOut, setUsbOut] = useState("");
   const [usbPcIp, setUsbPcIp] = useState("192.168.0.140");
+  const [usbOplAutostart, setUsbOplAutostart] = useState(5);
+  const [usbOplNoRemember, setUsbOplNoRemember] = useState(false);
   const [usbSkipDash, setUsbSkipDash] = useState(false);
   const [usbLog, setUsbLog] = useState("");
   const [usbRunning, setUsbRunning] = useState(false);
@@ -386,6 +539,13 @@ export default function App() {
   }, [tab, refreshLibrary]);
 
   useEffect(() => {
+    if (tab !== "library") return;
+    void apiLibraryGsmModes(base)
+      .then(setGsmModes)
+      .catch(() => setGsmModes([]));
+  }, [tab, base]);
+
+  useEffect(() => {
     if (tab !== "library") setLibraryDetailFile(null);
   }, [tab]);
 
@@ -400,12 +560,22 @@ export default function App() {
   const filteredLibraryRows = useMemo(() => {
     const q = librarySearch.trim().toLowerCase();
     if (!q) return rows;
-    return rows.filter(
-      (r) =>
-        r.name.toLowerCase().includes(q) ||
-        r.file.toLowerCase().includes(q) ||
-        (r.gameid && r.gameid.toLowerCase().includes(q))
-    );
+    return rows.filter((r) => {
+      const hay = [
+        r.name,
+        r.file,
+        r.gameid,
+        r.description,
+        r.release_date,
+        r.developers,
+        r.publisher,
+        r.max_players,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(q);
+    });
   }, [rows, librarySearch]);
 
   useEffect(() => {
@@ -467,6 +637,11 @@ export default function App() {
     fd.set("gameid", gameid.trim());
     fd.set("display_name", displayName.trim());
     fd.set("description", description);
+    fd.set("release_date", releaseDate.trim());
+    fd.set("developers", developers.trim());
+    fd.set("publisher", publisher.trim());
+    fd.set("max_players", maxPlayers.trim());
+    fd.set("opl_gsm_vmode", String(cadastroOplGsm));
     if (existingIso) fd.set("existing_iso", existingIso);
     if (isoFile) fd.set("iso", isoFile);
     const i0 = (document.getElementById("icon0") as HTMLInputElement)?.files?.[0];
@@ -484,6 +659,11 @@ export default function App() {
         setGameid("");
         setDisplayName("");
         setDescription("");
+        setReleaseDate("");
+        setDevelopers("");
+        setPublisher("");
+        setMaxPlayers("");
+        setCadastroOplGsm(-1);
         setExistingIso("");
         setIsoFile(null);
         await refreshLibrary();
@@ -510,10 +690,15 @@ export default function App() {
     setUsbRunning(true);
     setUsbLog("A correr…\n");
     saveSmbConfig(smbCfg);
+    let autostart = Math.floor(Number(usbOplAutostart));
+    if (!Number.isFinite(autostart)) autostart = 5;
+    autostart = Math.max(0, Math.min(9, autostart));
     const r = await window.osdxmb?.runUsbPack({
       outDir: usbOut.trim(),
       pcIp: usbPcIp.trim() || "192.168.0.140",
       skipOsdxmb: usbSkipDash,
+      oplAutostartSeconds: autostart,
+      oplNoRemember: usbOplNoRemember,
       env: smbConfigToProcessEnv(smbCfg),
     });
     setUsbRunning(false);
@@ -624,6 +809,7 @@ export default function App() {
                 <LibraryGameDetailView
                   base={base}
                   row={libraryDetailRow}
+                  gsmModes={gsmModes}
                   onBack={() => setLibraryDetailFile(null)}
                   onLibraryUpdated={() => void refreshLibrary()}
                 />
@@ -753,6 +939,52 @@ export default function App() {
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
                         placeholder="Resumo ou notas — visível na ficha do jogo."
+                      />
+                      <div className="row2">
+                        <div>
+                          <label htmlFor="cad-release">Data de lançamento</label>
+                          <input
+                            id="cad-release"
+                            type="text"
+                            value={releaseDate}
+                            onChange={(e) => setReleaseDate(e.target.value)}
+                            placeholder="ex. 2005 ou 2005-03-15"
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor="cad-maxpl">Máx. jogadores</label>
+                          <input
+                            id="cad-maxpl"
+                            type="text"
+                            value={maxPlayers}
+                            onChange={(e) => setMaxPlayers(e.target.value)}
+                            placeholder="ex. 1, 2, 1–4"
+                          />
+                        </div>
+                      </div>
+                      <label htmlFor="cad-dev">Developers / estúdios</label>
+                      <input
+                        id="cad-dev"
+                        type="text"
+                        value={developers}
+                        onChange={(e) => setDevelopers(e.target.value)}
+                        placeholder="Opcional"
+                      />
+                      <label htmlFor="cad-pub">Editora (publisher)</label>
+                      <input
+                        id="cad-pub"
+                        type="text"
+                        value={publisher}
+                        onChange={(e) => setPublisher(e.target.value)}
+                        placeholder="Opcional"
+                      />
+                      <OplGsmSelect
+                        id="cad-gsm"
+                        label="GSM / modo de vídeo (OPL)"
+                        value={cadastroOplGsm}
+                        onChange={setCadastroOplGsm}
+                        modes={gsmModes}
+                        hint="Cria ou actualiza o ficheiro na pasta CFG/ do servidor (nome: GameID.cfg), espelhado na partilha SMB."
                       />
                       <label htmlFor="cover">Capa para a biblioteca (PNG/JPG)</label>
                       <input id="cover" type="file" accept="image/png,image/jpeg" />
@@ -1026,9 +1258,10 @@ export default function App() {
           <div className="card">
             <h2>Pendrive PS2 (OPL flat + OSDXMB)</h2>
             <p className="sub">
-              Gera na pasta escolhida: <code className="mono">ART CFG CHT… DVD CD conf_*.cfg</code> na raiz + cópia
-              completa de <code className="mono">OSDXMB/</code>. Copie o conteúdo para a FAT32 do USB. Repo detectado:{" "}
-              <code className="mono">{repoHint || "—"}</code>
+              Gera na pasta escolhida: <code className="mono">ART CFG CHT… DVD CD conf_*.cfg</code> na raiz (inclui{" "}
+              <code className="mono">conf_opl.cfg</code> com ETH/USB em auto, menu SMB primeiro, remember/autostart conforme abaixo, e{" "}
+              <code className="mono">conf_network.cfg</code>) + cópia completa de <code className="mono">OSDXMB/</code>. Copie o conteúdo para a
+              FAT32 do USB. Repo detectado: <code className="mono">{repoHint || "—"}</code>
             </p>
             <label>Pasta de saída</label>
             <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
@@ -1041,6 +1274,19 @@ export default function App() {
             </div>
             <label>IP do PC (SMB no conf_network.cfg)</label>
             <input type="text" value={usbPcIp} onChange={(e) => setUsbPcIp(e.target.value)} />
+            <label style={{ marginTop: "0.75rem" }}>Autostart OPL (segundos, 0–9 — contagem antes do último jogo)</label>
+            <input
+              type="number"
+              min={0}
+              max={9}
+              value={usbOplAutostart}
+              onChange={(e) => setUsbOplAutostart(Number(e.target.value))}
+              style={{ maxWidth: "6rem" }}
+            />
+            <label style={{ display: "flex", alignItems: "center", gap: "0.35rem", marginTop: "0.75rem" }}>
+              <input type="checkbox" checked={usbOplNoRemember} onChange={(e) => setUsbOplNoRemember(e.target.checked)} />
+              Não gravar remember_last / autostart no conf_opl (OPL sem “lembrar último”)
+            </label>
             <label style={{ display: "flex", alignItems: "center", gap: "0.35rem", marginTop: "0.75rem" }}>
               <input type="checkbox" checked={usbSkipDash} onChange={(e) => setUsbSkipDash(e.target.checked)} />
               Só pastas OPL (não copiar OSDXMB)

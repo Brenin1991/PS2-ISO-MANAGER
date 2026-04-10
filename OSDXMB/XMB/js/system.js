@@ -477,6 +477,157 @@ function oplStartupStringFromListEntry(gameid, isoBaseName) {
     return s;
 }
 
+/** Defaults alinhados a server/opl_conf_opl.py — menu SMB primeiro, ETH/USB em Auto. */
+function oplDefaultOplCfgMap(autostartSeconds) {
+    const ast = Math.max(0, Math.min(9, Math.floor(Number(autostartSeconds) > 0 ? Number(autostartSeconds) : 5)));
+    return {
+        scrolling: "1",
+        autosort: "1",
+        autorefresh: "0",
+        eth_mode: "2",
+        default_device: "5",
+        usb_mode: "2",
+        hdd_mode: "0",
+        app_mode: "0",
+        bdm_cache: "16",
+        smb_cache: "16",
+        remember_last: "1",
+        autostart_last: String(ast),
+    };
+}
+
+function oplOplCfgKeyOrder() {
+    return [
+        "scrolling",
+        "autosort",
+        "autorefresh",
+        "eth_mode",
+        "default_device",
+        "usb_mode",
+        "hdd_mode",
+        "app_mode",
+        "bdm_cache",
+        "smb_cache",
+        "remember_last",
+        "autostart_last",
+    ];
+}
+
+function oplFormatOplCfgFromMap(map) {
+    const order = oplOplCfgKeyOrder();
+    const lines = [];
+    const seen = {};
+    let i;
+    for (i = 0; i < order.length; i++) {
+        const k = order[i];
+        if (map[k] !== undefined) {
+            lines.push(k + "=" + map[k]);
+            seen[k] = true;
+        }
+    }
+    for (const k2 in map) {
+        if (Object.prototype.hasOwnProperty.call(map, k2) && !seen[k2]) {
+            lines.push(k2 + "=" + map[k2]);
+        }
+    }
+    return lines.join("\r\n") + "\r\n";
+}
+
+/** Cria conf_opl.cfg completo se não existir; senão faz merge das chaves. */
+function oplEnsureOplCfgAtPath(path, mergeKv) {
+    if (!path) {
+        return false;
+    }
+    try {
+        if (std.exists(path)) {
+            return oplMergeOplCfgKeys(path, mergeKv);
+        }
+        const baseMap = oplDefaultOplCfgMap(Number(mergeKv.autostart_last) || 5);
+        const m = {};
+        let k;
+        for (k in baseMap) {
+            if (Object.prototype.hasOwnProperty.call(baseMap, k)) {
+                m[k] = baseMap[k];
+            }
+        }
+        for (k in mergeKv) {
+            if (Object.prototype.hasOwnProperty.call(mergeKv, k)) {
+                m[k] = mergeKv[k];
+            }
+        }
+        ftxtWrite(path, oplFormatOplCfgFromMap(m), "w+");
+        return true;
+    } catch (e) {
+        xlog("OPL XMB: oplEnsureOplCfgAtPath falhou");
+        xlog(e);
+        return false;
+    }
+}
+
+function oplPcHostFromBaseUrl(baseUrl) {
+    try {
+        const m = String(baseUrl || "").match(/^https?:\/\/([^/:]+)/i);
+        return m ? m[1] : "";
+    } catch (e) {
+        return "";
+    }
+}
+
+/** Partilha SMB OPL (netiso.cfg opcional: opl_smb_*). Porta default 4445 (Windows + Impacket). */
+function oplNetisoOplSmbSettingsFromCfg() {
+    let share = "PS2ISO";
+    let user = "opl";
+    let passStr = "oplopl";
+    let portStr = "4445";
+    try {
+        const c = CfgMan.Get("netiso.cfg");
+        if (c) {
+            const s = (c.opl_smb_share != null ? String(c.opl_smb_share) : c.OPL_SMB_SHARE != null ? String(c.OPL_SMB_SHARE) : "").trim();
+            if (s) {
+                share = s.substring(0, 31);
+            }
+            const u = (c.opl_smb_user != null ? String(c.opl_smb_user) : c.OPL_SMB_USER != null ? String(c.OPL_SMB_USER) : "").trim();
+            if (u) {
+                user = u.substring(0, 31);
+            }
+            const p = (c.opl_smb_pass != null ? String(c.opl_smb_pass) : c.OPL_SMB_PASS != null ? String(c.OPL_SMB_PASS) : "").trim();
+            if (p) {
+                passStr = p.substring(0, 31);
+            }
+            const prt = (c.opl_smb_port != null ? String(c.opl_smb_port) : c.OPL_SMB_PORT != null ? String(c.OPL_SMB_PORT) : "").trim();
+            if (prt && !isNaN(Number(prt))) {
+                portStr = String(Math.floor(Number(prt)));
+            }
+        }
+    } catch (eCfg) {
+        xlog(eCfg);
+    }
+    return { share: share, user: user, passStr: passStr, portStr: portStr };
+}
+
+/** conf_network.cfg (CRLF) — PS2 em DHCP; smb_ip = PC. */
+function oplBuildConfNetworkBody(pcHost, smb) {
+    if (!pcHost) {
+        return "";
+    }
+    const lines = [
+        "eth_linkmode=0",
+        "ps2_ip_use_dhcp=1",
+        "smb_share_nb_addr=",
+        "smb_share_use_nbns=0",
+        "smb_ip=" + pcHost,
+        "smb_port=" + smb.portStr,
+        "smb_share=" + smb.share,
+        "smb_user=" + smb.user,
+        "smb_pass=" + smb.passStr,
+        "ps2_ip_addr=192.168.0.10",
+        "ps2_netmask=255.255.255.0",
+        "ps2_gateway=192.168.0.1",
+        "ps2_dns=192.168.0.1",
+    ];
+    return lines.join("\r\n") + "\r\n";
+}
+
 /** Atualiza chaves em conf_opl.cfg existente (CRLF). */
 function oplMergeOplCfgKeys(path, kv) {
     try {
@@ -551,7 +702,18 @@ function oplPrepareSmbLaunchFromXmb(opts) {
         }
 
         const isoFile = (opts && opts.isoFileName) ? String(opts.isoFileName).trim() : "";
-        const autostartSeconds = (opts && Number(opts.autostartSeconds) > 0) ? Math.floor(Number(opts.autostartSeconds)) : 5;
+        let autostartSeconds = (opts && Number(opts.autostartSeconds) >= 0) ? Math.floor(Number(opts.autostartSeconds)) : 5;
+        try {
+            const nc = CfgMan.Get("netiso.cfg");
+            const a = (nc && (nc.opl_autostart_seconds != null || nc.OPL_AUTOSTART_SECONDS != null))
+                ? String(nc.opl_autostart_seconds != null ? nc.opl_autostart_seconds : nc.OPL_AUTOSTART_SECONDS).trim()
+                : "";
+            if (a !== "" && !isNaN(Number(a))) {
+                autostartSeconds = Math.max(0, Math.min(9, Math.floor(Number(a))));
+            }
+        } catch (eAs) {
+            xlog(eAs);
+        }
 
         const startup = oplStartupStringFromListEntry(gameid, isoFile);
         if (!startup) {
@@ -578,7 +740,17 @@ function oplPrepareSmbLaunchFromXmb(opts) {
             }
         }
 
-        const mergeKv = { remember_last: "1", autostart_last: String(autostartSeconds) };
+        const mergeKv = {
+            eth_mode: "2",
+            default_device: "5",
+            usb_mode: "2",
+            hdd_mode: "0",
+            app_mode: "0",
+            bdm_cache: "16",
+            smb_cache: "16",
+            remember_last: "1",
+            autostart_last: String(autostartSeconds),
+        };
         const oplMain = [];
         if (root) {
             oplMain.push(root + "conf_opl.cfg");
@@ -587,13 +759,41 @@ function oplPrepareSmbLaunchFromXmb(opts) {
         oplMain.push("mc1:/OPL/conf_opl.cfg");
         for (let j = 0; j < oplMain.length; j++) {
             try {
-                if (oplMergeOplCfgKeys(oplMain[j], mergeKv)) {
-                    xlog("OPL XMB: " + oplMain[j] + " -> remember_last=1 autostart_last=" + autostartSeconds);
+                if (oplEnsureOplCfgAtPath(oplMain[j], mergeKv)) {
+                    xlog(
+                        "OPL XMB: " +
+                            oplMain[j] +
+                            " -> ETH+USB auto, menu SMB, remember_last=1 autostart_last=" +
+                            autostartSeconds,
+                    );
                 }
             } catch (e2) {
                 xlog("OPL XMB: falha a atualizar " + oplMain[j]);
                 xlog(e2);
             }
+        }
+
+        const pcHost = oplPcHostFromBaseUrl(bu0);
+        const smbSet = oplNetisoOplSmbSettingsFromCfg();
+        const netBody = oplBuildConfNetworkBody(pcHost, smbSet);
+        if (netBody) {
+            const netPaths = [];
+            if (root) {
+                netPaths.push(root + "conf_network.cfg");
+            }
+            netPaths.push("mc0:/OPL/conf_network.cfg");
+            netPaths.push("mc1:/OPL/conf_network.cfg");
+            for (let n = 0; n < netPaths.length; n++) {
+                try {
+                    ftxtWrite(netPaths[n], netBody, "w+");
+                    xlog("OPL XMB: " + netPaths[n] + " -> smb_ip=" + pcHost + " port=" + smbSet.portStr);
+                } catch (eNet) {
+                    xlog("OPL XMB: falha a escrever " + netPaths[n]);
+                    xlog(eNet);
+                }
+            }
+        } else {
+            xlog("OPL XMB: sem host no url — conf_network.cfg não gerado");
         }
     } catch (eTop) {
         xlog("OPL XMB: oplPrepareSmbLaunchFromXmb() falhou");
@@ -1322,8 +1522,30 @@ function netUdpbdPrepareIso(baseUrl, isoFilename) {
  * Usa GET + Request().download (compatível com o motor XMB); o body é JSON pequeno.
  */
 /**
+ * Agenda GET /api/play/report?clear=1 fora do UIHandler (Tasks.Process), para não fazer
+ * MainMutex.unlock durante o redraw — isso causava crashes intermitentes na consola.
+ * Throttle ~4s evita rajadas ao mudar de submenu.
+ */
+var _xmbPcClearLastScheduleMs = 0;
+function xmbScheduleClearPlayingOnPcFromMainUi() {
+    try {
+        var now = Date.now();
+        if (_xmbPcClearLastScheduleMs && (now - _xmbPcClearLastScheduleMs) < 4000) {
+            return;
+        }
+        _xmbPcClearLastScheduleMs = now;
+        Tasks.Push(function () {
+            xmbReportClearPlayingOnPc();
+        });
+    } catch (e) {
+        xlog(e);
+    }
+}
+
+/**
  * Indica ao PC que o XMB está no ecrã principal — termina "jogo atual" no painel (/api/play/status).
- * Chamado ao entrar no estado Main UI (DashUI); usa netiso.cfg url + report_key opcional.
+ * Deve correr dentro de Tasks.Push (mutex gerido pelo worker) ou com mutex já desbloqueado como o resto da rede.
+ * Usa netiso.cfg url + report_key opcional. Ficheiro temp único por pedido.
  */
 function xmbReportClearPlayingOnPc() {
     try {
@@ -1353,7 +1575,7 @@ function xmbReportClearPlayingOnPc() {
             xlog(eK);
         }
         const url = base + "/api/play/report?clear=1" + keyQs;
-        const tmp = PATHS.XMB + "temp/play_report_clear.json";
+        const tmp = PATHS.XMB + "temp/play_report_clr_" + String(Date.now()) + ".json";
         if (!std.exists(PATHS.XMB + "temp")) {
             try {
                 os.mkdir(PATHS.XMB + "temp");

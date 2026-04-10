@@ -40,6 +40,11 @@ def init_schema(conn: sqlite3.Connection) -> None:
             name TEXT NOT NULL DEFAULT '',
             gameid TEXT NOT NULL DEFAULT '',
             description TEXT NOT NULL DEFAULT '',
+            release_date TEXT NOT NULL DEFAULT '',
+            developers TEXT NOT NULL DEFAULT '',
+            publisher TEXT NOT NULL DEFAULT '',
+            max_players TEXT NOT NULL DEFAULT '',
+            opl_gsm_vmode INTEGER NOT NULL DEFAULT -1,
             updated_at REAL NOT NULL
         )
         """
@@ -54,6 +59,23 @@ def init_schema(conn: sqlite3.Connection) -> None:
         )
         """
     )
+    conn.commit()
+
+
+def migrate_library_extra_columns(conn: sqlite3.Connection) -> None:
+    """ALTER em bases antigas (colunas novas)."""
+    cur = conn.execute("PRAGMA table_info(library_entry)")
+    cols = {str(row[1]) for row in cur.fetchall()}
+    alters = (
+        ("release_date", "ALTER TABLE library_entry ADD COLUMN release_date TEXT NOT NULL DEFAULT ''"),
+        ("developers", "ALTER TABLE library_entry ADD COLUMN developers TEXT NOT NULL DEFAULT ''"),
+        ("publisher", "ALTER TABLE library_entry ADD COLUMN publisher TEXT NOT NULL DEFAULT ''"),
+        ("max_players", "ALTER TABLE library_entry ADD COLUMN max_players TEXT NOT NULL DEFAULT ''"),
+        ("opl_gsm_vmode", "ALTER TABLE library_entry ADD COLUMN opl_gsm_vmode INTEGER NOT NULL DEFAULT -1"),
+    )
+    for col, sql in alters:
+        if col not in cols:
+            conn.execute(sql)
     conn.commit()
 
 
@@ -91,17 +113,33 @@ def migrate_from_json(conn: sqlite3.Connection, json_path: str) -> int:
         name = (meta.get("name") or "").strip()
         gameid = (meta.get("gameid") or "").strip()
         desc = (meta.get("description") or "").strip()
+        rd = (meta.get("release_date") or "").strip()[:64]
+        dev = (meta.get("developers") or "").strip()[:2000]
+        pub = (meta.get("publisher") or "").strip()[:512]
+        mp = (meta.get("max_players") or "").strip()[:32]
+        try:
+            og = int(meta.get("opl_gsm_vmode", -1))
+        except (TypeError, ValueError):
+            og = -1
         conn.execute(
             """
-            INSERT INTO library_entry(iso_relpath, name, gameid, description, updated_at)
-            VALUES(?, ?, ?, ?, ?)
+            INSERT INTO library_entry(
+                iso_relpath, name, gameid, description,
+                release_date, developers, publisher, max_players, opl_gsm_vmode, updated_at
+            )
+            VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(iso_relpath) DO UPDATE SET
                 name = excluded.name,
                 gameid = excluded.gameid,
                 description = excluded.description,
+                release_date = excluded.release_date,
+                developers = excluded.developers,
+                publisher = excluded.publisher,
+                max_players = excluded.max_players,
+                opl_gsm_vmode = excluded.opl_gsm_vmode,
                 updated_at = excluded.updated_at
             """,
-            (rp, name, gameid, desc, now),
+            (rp, name, gameid, desc, rd, dev, pub, mp, og, now),
         )
         n += 1
     conn.commit()
@@ -112,6 +150,7 @@ def ensure_db(db_path: str, json_legacy_path: str | None) -> None:
     conn = connect(db_path)
     try:
         init_schema(conn)
+        migrate_library_extra_columns(conn)
         ver = _get_meta(conn, "schema_version")
         if ver is None:
             _set_meta(conn, "schema_version", str(SCHEMA_VERSION))
@@ -135,7 +174,11 @@ def load_all_as_dict(db_path: str) -> dict[str, dict[str, Any]]:
     conn = connect(db_path)
     try:
         rows = conn.execute(
-            "SELECT iso_relpath, name, gameid, description FROM library_entry"
+            """
+            SELECT iso_relpath, name, gameid, description,
+                   release_date, developers, publisher, max_players, opl_gsm_vmode
+            FROM library_entry
+            """
         ).fetchall()
         out: dict[str, dict[str, Any]] = {}
         for r in rows:
@@ -143,6 +186,11 @@ def load_all_as_dict(db_path: str) -> dict[str, dict[str, Any]]:
                 "name": r["name"] or "",
                 "gameid": r["gameid"] or "",
                 "description": r["description"] or "",
+                "release_date": r["release_date"] or "",
+                "developers": r["developers"] or "",
+                "publisher": r["publisher"] or "",
+                "max_players": r["max_players"] or "",
+                "opl_gsm_vmode": int(r["opl_gsm_vmode"] if r["opl_gsm_vmode"] is not None else -1),
             }
         return out
     finally:
@@ -157,7 +205,11 @@ def get_entry(db_path: str, iso_relpath: str) -> dict[str, Any] | None:
     conn = connect(db_path)
     try:
         row = conn.execute(
-            "SELECT iso_relpath, name, gameid, description FROM library_entry WHERE iso_relpath = ?",
+            """
+            SELECT iso_relpath, name, gameid, description,
+                   release_date, developers, publisher, max_players, opl_gsm_vmode
+            FROM library_entry WHERE iso_relpath = ?
+            """,
             (rp,),
         ).fetchone()
         if not row:
@@ -167,6 +219,11 @@ def get_entry(db_path: str, iso_relpath: str) -> dict[str, Any] | None:
             "name": row["name"] or "",
             "gameid": row["gameid"] or "",
             "description": row["description"] or "",
+            "release_date": row["release_date"] or "",
+            "developers": row["developers"] or "",
+            "publisher": row["publisher"] or "",
+            "max_players": row["max_players"] or "",
+            "opl_gsm_vmode": int(row["opl_gsm_vmode"] if row["opl_gsm_vmode"] is not None else -1),
         }
     finally:
         conn.close()
@@ -179,21 +236,45 @@ def upsert_entry(
     name: str,
     gameid: str,
     description: str = "",
+    release_date: str = "",
+    developers: str = "",
+    publisher: str = "",
+    max_players: str = "",
+    opl_gsm_vmode: int = -1,
 ) -> None:
     rp = iso_relpath.replace("\\", "/").strip()
     conn = connect(db_path)
     try:
         conn.execute(
             """
-            INSERT INTO library_entry(iso_relpath, name, gameid, description, updated_at)
-            VALUES(?, ?, ?, ?, ?)
+            INSERT INTO library_entry(
+                iso_relpath, name, gameid, description,
+                release_date, developers, publisher, max_players, opl_gsm_vmode, updated_at
+            )
+            VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(iso_relpath) DO UPDATE SET
                 name = excluded.name,
                 gameid = excluded.gameid,
                 description = excluded.description,
+                release_date = excluded.release_date,
+                developers = excluded.developers,
+                publisher = excluded.publisher,
+                max_players = excluded.max_players,
+                opl_gsm_vmode = excluded.opl_gsm_vmode,
                 updated_at = excluded.updated_at
             """,
-            (rp, name, gameid, description[:8000], time.time()),
+            (
+                rp,
+                name,
+                gameid,
+                description[:8000],
+                release_date[:64],
+                developers[:2000],
+                publisher[:512],
+                max_players[:32],
+                int(opl_gsm_vmode),
+                time.time(),
+            ),
         )
         conn.commit()
     finally:

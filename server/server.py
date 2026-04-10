@@ -25,6 +25,7 @@ from flask_cors import CORS
 import iso_library_db
 import play_time_tracker
 import opl_conf_network
+import opl_game_cfg
 import opl_smb_env
 import ps2_iso_gameid
 import ps2online_scrape
@@ -57,7 +58,7 @@ ISO_DIR = os.environ.get("PS2_ISO_DIR", os.path.join(_BASE, "isos"))
 os.makedirs(ISO_DIR, exist_ok=True)
 os.environ.setdefault("PS2_ISO_DIR", ISO_DIR)
 # Layout OPL USB: ISOs em DVD/ ou CD/ dentro da mesma pasta (ou na raiz).
-for _opl_sub in ("DVD", "CD"):
+for _opl_sub in ("DVD", "CD", "CFG"):
     try:
         os.makedirs(os.path.join(ISO_DIR, _opl_sub), exist_ok=True)
     except OSError:
@@ -152,6 +153,16 @@ def _convert_art_upload_to_dest(src: str, dest: str, kind: str) -> None:
 def load_library() -> dict:
     """Metadados da biblioteca (SQLite). Formato compatível com o antigo JSON por chave."""
     return iso_library_db.load_all_as_dict(LIBRARY_DB_PATH)
+
+
+def _parse_opl_gsm_vmode_form(req) -> int:
+    raw = req.form.get("opl_gsm_vmode")
+    if raw is None or str(raw).strip() == "":
+        return -1
+    try:
+        return opl_game_cfg.clamp_gsm_vmode(int(str(raw).strip()))
+    except ValueError:
+        return -1
 
 
 def _safe_gameid(gid: str) -> str | None:
@@ -252,6 +263,14 @@ def _library_row(f: str, lib: dict, play_totals: dict[str, float] | None = None)
     name = meta.get("name") or os.path.splitext(os.path.basename(f))[0]
     gameid = meta.get("gameid") or ""
     desc = (meta.get("description") or "").strip()
+    release_date = (meta.get("release_date") or "").strip()
+    developers = (meta.get("developers") or "").strip()
+    publisher = (meta.get("publisher") or "").strip()
+    max_players = (meta.get("max_players") or "").strip()
+    try:
+        opl_gsm_vmode = int(meta.get("opl_gsm_vmode", -1))
+    except (TypeError, ValueError):
+        opl_gsm_vmode = -1
     has_art = _art_folder_has_files(gameid)
     cpath = _cover_png_path(gameid)
     has_cover = cpath is not None
@@ -267,6 +286,11 @@ def _library_row(f: str, lib: dict, play_totals: dict[str, float] | None = None)
         "gameid": gameid,
         "has_art": has_art,
         "description": desc,
+        "release_date": release_date,
+        "developers": developers,
+        "publisher": publisher,
+        "max_players": max_players,
+        "opl_gsm_vmode": opl_gsm_vmode,
         "has_cover": has_cover,
         "cover_url": cover_url,
         "play_seconds_total": round(play_sec, 1),
@@ -364,6 +388,11 @@ def _process_iso_admin_save(req) -> tuple[str | None, str | None, str | None]:
     gameid = _safe_gameid(gameid_raw) if gameid_raw else None
     display_name = (req.form.get("display_name") or "").strip()
     description = (req.form.get("description") or "").strip()[:8000]
+    release_date = (req.form.get("release_date") or "").strip()[:64]
+    developers = (req.form.get("developers") or "").strip()[:2000]
+    publisher = (req.form.get("publisher") or "").strip()[:512]
+    max_players = (req.form.get("max_players") or "").strip()[:32]
+    opl_gsm_vmode = _parse_opl_gsm_vmode_form(req)
     existing = (req.form.get("existing_iso") or "").strip()
     iso_up = req.files.get("iso")
 
@@ -404,6 +433,7 @@ def _process_iso_admin_save(req) -> tuple[str | None, str | None, str | None]:
         prev_gid = (prev.get("gameid") or "").strip() if prev else ""
         if prev_gid and gameid and prev_gid.upper() != gameid.upper():
             _migrate_gameid_asset_folders(prev_gid, gameid)
+            opl_game_cfg.rename_game_cfg_if_needed(ISO_DIR, prev_gid, gameid)
 
     if tmp_upload_path:
         iso_name = _iso_filename_from_gameid_and_name(gameid, display_name)
@@ -424,7 +454,14 @@ def _process_iso_admin_save(req) -> tuple[str | None, str | None, str | None]:
         name=display_name,
         gameid=gameid,
         description=description,
+        release_date=release_date,
+        developers=developers,
+        publisher=publisher,
+        max_players=max_players,
+        opl_gsm_vmode=opl_gsm_vmode,
     )
+
+    opl_game_cfg.write_game_cfg(ISO_DIR, gameid, opl_gsm_vmode)
 
     cover_up = req.files.get("cover")
     if cover_up and cover_up.filename and gameid:
@@ -491,6 +528,12 @@ def api_library():
     files = sorted(_iter_iso_relpaths())
     out = [_library_row(f, lib, totals) for f in files]
     return jsonify(out)
+
+
+@app.get("/api/library/gsm-modes")
+def api_library_gsm_modes():
+    """Modos GSM do OPL (índice $GSMVMode em CFG/<gameid>.cfg)."""
+    return jsonify(opl_game_cfg.gsm_modes_for_api())
 
 
 @app.get("/api/play/status")
@@ -682,7 +725,12 @@ def iso_admin_page():
     totals = iso_library_db.play_time_totals_map(LIBRARY_DB_PATH)
     files = sorted(_iter_iso_relpaths())
     rows = [_library_row(f, lib, totals) for f in files]
-    return render_template("iso_admin.html", rows=rows, existing_files=sorted(files))
+    return render_template(
+        "iso_admin.html",
+        rows=rows,
+        existing_files=sorted(files),
+        gsm_modes=opl_game_cfg.gsm_modes_for_api(),
+    )
 
 
 @app.route("/admin/save", methods=["POST"])

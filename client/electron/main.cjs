@@ -586,6 +586,10 @@ ipcMain.handle("run-usb-pack", async (_e, opts) => {
   }
   if (opts.layout === "opl-only") args.push("--layout", "opl-only");
   if (opts.copyElf) args.push("--copy-elf");
+  if (opts.oplAutostartSeconds != null && opts.oplAutostartSeconds !== "") {
+    args.push("--opl-autostart-seconds", String(opts.oplAutostartSeconds));
+  }
+  if (opts.oplNoRemember) args.push("--opl-no-remember");
 
   const { exe: cmd } = resolvePythonExe(repo);
   return new Promise((resolve) => {

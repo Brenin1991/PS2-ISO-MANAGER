@@ -51,6 +51,8 @@ def _write_opl_cfgs_at_usb_root(
     ps2_mask: str,
     ps2_gw: str,
     ps2_dns: str | None,
+    opl_autostart_seconds: int = 5,
+    opl_remember_last: bool = True,
 ) -> None:
     """conf_opl.cfg + conf_network.cfg na raiz do volume (layout flat)."""
     try:
@@ -65,7 +67,11 @@ def _write_opl_cfgs_at_usb_root(
     except ValueError as e:
         print(f"Erro ao gerar conf_network.cfg: {e}", file=sys.stderr)
         sys.exit(1)
-    opl = opl_conf_opl.build_conf_opl_crlf()
+    ast = max(0, min(9, int(opl_autostart_seconds)))
+    opl = opl_conf_opl.build_conf_opl_crlf(
+        remember_last=1 if opl_remember_last else 0,
+        autostart_last=ast if opl_remember_last else 0,
+    )
     with open(os.path.join(root, "conf_opl.cfg"), "wb") as f:
         f.write(opl)
     with open(os.path.join(root, "conf_network.cfg"), "wb") as f:
@@ -85,6 +91,8 @@ def build_ps2_usb_root(
     ps2_mask: str,
     ps2_gw: str,
     ps2_dns: str | None,
+    opl_autostart_seconds: int = 5,
+    opl_remember_last: bool = True,
 ) -> None:
     root = os.path.abspath(out_root)
 
@@ -101,6 +109,8 @@ def build_ps2_usb_root(
         ps2_mask=ps2_mask,
         ps2_gw=ps2_gw,
         ps2_dns=ps2_dns,
+        opl_autostart_seconds=opl_autostart_seconds,
+        opl_remember_last=opl_remember_last,
     )
 
     if copy_osdxmb:
@@ -122,7 +132,9 @@ def build_ps2_usb_root(
     with open(marker, "w", encoding="utf-8") as f:
         f.write(
             "Raiz do USB (FAT32):\n"
-            "  conf_opl.cfg / conf_network.cfg  — gerados pelo script (IP do PC SMB)\n"
+            "  conf_opl.cfg — ETH+USB em modo Auto, menu inicial = Jogos em rede (SMB),\n"
+            "    remember_last + autostart_last (último jogo com contagem regressiva).\n"
+            "  conf_network.cfg — smb_ip, partilha OPL_SMB_*, PS2 em DHCP por defeito.\n"
             "  ART CFG CHT LNG THM VMC  — OPL na raiz\n"
             "  DVD CD                  — ISOs\n"
             "  OSDXMB                  — dashboard XMB\n\n"
@@ -141,6 +153,8 @@ def build_opl_only_flat(
     ps2_mask: str,
     ps2_gw: str,
     ps2_dns: str | None,
+    opl_autostart_seconds: int = 5,
+    opl_remember_last: bool = True,
 ) -> None:
     """Só raiz “OPL flat” + DVD/CD + APPS/OPL (sem OSDXMB)."""
     root = os.path.abspath(out_root)
@@ -156,6 +170,8 @@ def build_opl_only_flat(
         ps2_mask=ps2_mask,
         ps2_gw=ps2_gw,
         ps2_dns=ps2_dns,
+        opl_autostart_seconds=opl_autostart_seconds,
+        opl_remember_last=opl_remember_last,
     )
     apps_opl = os.path.join(root, "APPS", "OPL")
     _mkdir(apps_opl)
@@ -205,10 +221,22 @@ def main() -> None:
     ap.add_argument("--ps2-mask", default="255.255.255.0")
     ap.add_argument("--ps2-gw", default="192.168.0.1")
     ap.add_argument("--ps2-dns", default="", help="Vazio = igual ao gateway")
+    ap.add_argument(
+        "--opl-autostart-seconds",
+        type=int,
+        default=5,
+        help="autostart_last no conf_opl (0–9 segundos; 0 = desliga contagem). Default: 5",
+    )
+    ap.add_argument(
+        "--opl-no-remember",
+        action="store_true",
+        help="Desliga remember_last/autostart_last no conf_opl gerado.",
+    )
     args = ap.parse_args()
 
     dhcp = not args.static_ps2
     ps2_dns = args.ps2_dns.strip() or None
+    opl_remember = not args.opl_no_remember
 
     if args.layout == "opl-only":
         build_opl_only_flat(
@@ -220,6 +248,8 @@ def main() -> None:
             ps2_mask=args.ps2_mask,
             ps2_gw=args.ps2_gw,
             ps2_dns=ps2_dns,
+            opl_autostart_seconds=args.opl_autostart_seconds,
+            opl_remember_last=opl_remember,
         )
     else:
         build_ps2_usb_root(
@@ -232,6 +262,8 @@ def main() -> None:
             ps2_mask=args.ps2_mask,
             ps2_gw=args.ps2_gw,
             ps2_dns=ps2_dns,
+            opl_autostart_seconds=args.opl_autostart_seconds,
+            opl_remember_last=opl_remember,
         )
 
     print(f"Pronto: {os.path.abspath(args.out)}")

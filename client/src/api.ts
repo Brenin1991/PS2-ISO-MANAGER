@@ -8,6 +8,8 @@ export function setBackendUrl(url: string) {
   localStorage.setItem(LS_KEY, url.replace(/\/$/, ""));
 }
 
+export type GsmMode = { id: number; label: string };
+
 export type LibraryRow = {
   file: string;
   name: string;
@@ -15,6 +17,13 @@ export type LibraryRow = {
   size: number;
   has_art: boolean;
   description: string;
+  /** Metadados extra (SQLite) */
+  release_date?: string;
+  developers?: string;
+  publisher?: string;
+  max_players?: string;
+  /** -1 = GSM off; 0..28 = índice OPL $GSMVMode (ficheiro CFG/<gameid>.cfg na partilha) */
+  opl_gsm_vmode?: number;
   has_cover: boolean;
   /** Caminho relativo, ex. `/api/library/cover/SLUS_123.45` */
   cover_url: string;
@@ -56,6 +65,12 @@ export async function apiLibrary(base: string): Promise<LibraryRow[]> {
   const r = await fetch(`${base}/api/library`);
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   return r.json();
+}
+
+export async function apiLibraryGsmModes(base: string): Promise<GsmMode[]> {
+  const r = await fetch(`${base}/api/library/gsm-modes`);
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json() as Promise<GsmMode[]>;
 }
 
 export async function apiPlayStatus(base: string): Promise<PlayStatus> {

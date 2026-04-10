@@ -271,9 +271,9 @@ function DashUIStateHandler() {
         states.Previous = states.Current;
         states.Current = states.Next;
 
-        /* XMB principal visível: PC deixa de mostrar jogo atual (evita estado infinito). */
-        if (states.Current === 1 && typeof xmbReportClearPlayingOnPc === "function") {
-            xmbReportClearPlayingOnPc();
+        /* XMB principal visível: PC deixa de mostrar jogo atual (pedido HTTP fora do UIHandler). */
+        if (states.Current === 1 && typeof xmbScheduleClearPlayingOnPcFromMainUi === "function") {
+            xmbScheduleClearPlayingOnPcFromMainUi();
         }
 	}
 
