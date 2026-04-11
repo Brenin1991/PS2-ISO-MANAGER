@@ -4,6 +4,7 @@ const fs = require("fs");
 const os = require("os");
 const crypto = require("crypto");
 const { spawn, execFile } = require("child_process");
+const net = require("net");
 const { promisify } = require("util");
 
 const execFileAsync = promisify(execFile);
@@ -158,6 +159,69 @@ function emitSetupLog(sessionId, stream, line) {
       line: `[#${sessionId}] [setup] ${line}\n`,
     });
   }
+}
+
+/** Mesma porta que server.py / opl_smb_host.py (Waitress). */
+function getBackendListenPort(inject) {
+  if (!inject || typeof inject !== "object") return 5000;
+  const raw = inject.FLASK_PORT ?? inject.PORT;
+  if (raw === undefined || raw === null || String(raw).trim() === "") return 5000;
+  const n = parseInt(String(raw), 10);
+  if (Number.isFinite(n) && n >= 1 && n <= 65535) return n;
+  return 5000;
+}
+
+/** true se ninguém estiver em escuta em 0.0.0.0:port (teste com bind). */
+function canBindTcpPort(port) {
+  return new Promise((resolve) => {
+    const s = net.createServer();
+    const finish = (ok) => {
+      try {
+        s.removeAllListeners();
+        s.close(() => resolve(ok));
+      } catch (_) {
+        resolve(ok);
+      }
+    };
+    s.once("error", (err) => {
+      finish(err && err.code === "EADDRINUSE" ? false : true);
+    });
+    s.listen({ port, host: "0.0.0.0" }, () => {
+      finish(true);
+    });
+  });
+}
+
+/** Após matar o Python anterior, o Waitress pode demorar a libertar a porta. */
+async function waitForBackendPortFree(port, sessionId, maxMs = 25000) {
+  const t0 = Date.now();
+  let lastLog = 0;
+  let waited = false;
+  while (Date.now() - t0 < maxMs) {
+    const ok = await canBindTcpPort(port);
+    if (ok) {
+      if (waited) {
+        emitSetupLog(sessionId, "stdout", `Porta ${port} livre.`);
+      }
+      return true;
+    }
+    waited = true;
+    if (Date.now() - lastLog > 3000) {
+      lastLog = Date.now();
+      emitSetupLog(
+        sessionId,
+        "stdout",
+        `A aguardar a porta ${port} (ainda em uso — o processo anterior pode estar a terminar)…`,
+      );
+    }
+    await new Promise((r) => setTimeout(r, 300));
+  }
+  emitSetupLog(
+    sessionId,
+    "stderr",
+    `Porta ${port} continua ocupada após ${maxMs / 1000}s. Feche o que usa essa porta ou mude FLASK_PORT.`,
+  );
+  return false;
 }
 
 function runModuleWithStreamedOutput(cmd, args, options, onLine) {
@@ -553,7 +617,7 @@ ipcMain.handle("start-python-backend", async (_e, { mode, env: inject }) => {
       const old = pythonChild;
       pythonChild = null;
       await killPythonProcessTree(old);
-      await new Promise((r) => setTimeout(r, process.platform === "win32" ? 450 : 250));
+      await new Promise((r) => setTimeout(r, process.platform === "win32" ? 450 : 650));
     }
 
     const sessionId = ++pythonLogSession;
@@ -571,6 +635,19 @@ ipcMain.handle("start-python-backend", async (_e, { mode, env: inject }) => {
     }
 
     const { exe: cmd, source: pySource } = resolvePythonExe(repo);
+    const listenPort = getBackendListenPort(inject);
+    const portOk = await waitForBackendPortFree(listenPort, sessionId);
+    if (!portOk) {
+      return {
+        ok: false,
+        error: `Porta ${listenPort} ocupada. Pare o processo que a usa ou altere FLASK_PORT no ambiente.`,
+        script: scriptPath,
+        pythonExe: cmd,
+        pythonSource: pySource,
+        pythonHint: "",
+      };
+    }
+
     const child = spawn(cmd, ["-u", scriptPath], {
       cwd: serverDir,
       env: envForPythonSubprocess(inject),
